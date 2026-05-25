@@ -9,6 +9,9 @@ class GenderType(str, Enum):
     D = "Other"
     E = "prefer_not_to_say"
 
+class AllowedGender(str, Enum):
+    A = "Everyone"
+    B = "Same_Gender"
 
 
 class Owner(SQLModel, table = True):
@@ -24,3 +27,5 @@ class Owner(SQLModel, table = True):
     longitude: float | None = None
     email: str = Field(unique=True)
     phone_number: str | None = None
+    bio: str | None = None
+    allow_message_from: Optional[AllowedGender] = Field(default=AllowedGender.A)
