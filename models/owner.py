@@ -26,6 +26,7 @@ class Owner(SQLModel, table = True):
     latitude : float | None = None
     longitude: float | None = None
     email: str = Field(unique=True)
+    password: str
     phone_number: str | None = None
     bio: str | None = None
     allow_message_from: Optional[AllowedGender] = Field(default=AllowedGender.A)
