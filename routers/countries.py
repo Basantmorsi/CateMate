@@ -16,3 +16,8 @@ def create_country(session:SessionDep, country_data:CountryCreate):
     session.commit()
     session.refresh(new_country)
     return new_country
+
+@router.get("/", response_model= list[CountryRead], status_code=status.HTTP_200_OK)
+def get_countries(session:SessionDep):
+    countries = session.exec(select(Country).order_by(Country.name)).all()
+    return countries
