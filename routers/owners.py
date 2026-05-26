@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 from CateMate.models.owner import Owner
-from CateMate.schemas.owner import OwnerCreate, OwnerRead
-from CateMate.utils.hashing import hash_password
+from CateMate.schemas.owner import OwnerCreate, OwnerRead, LoginRequest
+from CateMate.utils.hashing import hash_password, verify_password
+from CateMate.utils.auth import create_access_token
 from CateMate.db import SessionDep
 
 
@@ -31,3 +32,23 @@ def create_owner(session:SessionDep, data:OwnerCreate):
     session.commit()
     session.refresh(new_owner)
     return new_owner
+
+@router.post("/login")
+def login(user_data: LoginRequest, session: SessionDep):
+
+    user = session.exec(select(Owner).where(Owner.email == user_data.email)).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_password(user_data.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token(
+        data={"sub": str(user.id)}
+    )
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }

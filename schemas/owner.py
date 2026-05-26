@@ -42,3 +42,7 @@ class OwnerRead(BaseModel):
     phone_number: str | None = None
     bio: str | None = None
     allow_message_from: Optional[AllowedGender] = AllowedGender.A
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
