@@ -52,3 +52,9 @@ def login(user_data: LoginRequest, session: SessionDep):
         "access_token": token,
         "token_type": "bearer"
     }
+
+
+@router.get("/", response_model= list[OwnerRead], status_code=status.HTTP_200_OK)
+def get_owners(session:SessionDep):
+    owners = session.exec(select(Owner).order_by(Owner.name)).all()
+    return owners
