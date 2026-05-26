@@ -1,6 +1,8 @@
 # db.py is where the database actually defined
 from sqlmodel import create_engine, SQLModel, Session
-from . import models
+from CateMate.models.owner import Owner
+from CateMate.models.city import City
+from CateMate.models.country import Country
 from typing import Annotated
 from fastapi import Depends
 
