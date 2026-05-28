@@ -1,4 +1,4 @@
-from models.breed import Breed
+from CateMate.models.breed import Breed
 breeds = [
             Breed(name="Domestic Shorthair", category="domestic", hair_length="shorthair", is_official_breed=False),
             Breed( name="Domestic Mediumhair", category="domestic", hair_length="mediumhair", is_official_breed=False),
@@ -42,4 +42,5 @@ breeds = [
             Breed(name="Toyger", category="experimental", hair_length="shorthair", registries="TICA"),
             Breed(name="Munchkin", category="experimental", hair_length="shorthair", registries="TICA"),
             Breed(name="Pixiebob", category="experimental", hair_length="shorthair", registries="TICA"),
+            Breed(name="Other", category="other", is_official_breed=False),
 ]
