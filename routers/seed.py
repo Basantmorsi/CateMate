@@ -17,6 +17,8 @@ def seed_breed(session:SessionDep):
             existing = session.exec(select(Breed).where(Breed.name == breed.name)).first()
             if not existing:
                 session.add(breed)
+            else:
+                print("Breed exists in db")
         session.commit()
     except Exception as e:
         session.rollback()
