@@ -7,7 +7,7 @@ from jose import jwt, JWTError
 SECRET_KEY = "fb23225bb900edecf273ac7db21b6b62504aacc5431429f12db44d70c551cb01"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="owners/login")
 
 
 def create_access_token(data: dict):

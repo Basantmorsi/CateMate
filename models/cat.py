@@ -14,6 +14,6 @@ class Cat(SQLModel, table= True):
     breed_id: int = Field(foreign_key="breed.id")
     gender: CatGender
     color: str
-    notes: str
+    notes: str | None = Field(default=None)
 
 

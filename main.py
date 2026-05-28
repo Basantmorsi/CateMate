@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from .db_init import create_db
-from .routers import owners, countries, cities, seed
+from .routers import owners, countries, cities, seed, cats
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +16,7 @@ app.include_router(owners.router)
 app.include_router(countries.router)
 app.include_router(cities.router)
 app.include_router(seed.router)
+app.include_router(cats.router)
 
 @app.get("/")
 def read_root():

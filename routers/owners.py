@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
+from fastapi.params import Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from CateMate.models.owner import Owner
 from CateMate.schemas.owner import OwnerCreate, OwnerRead, LoginRequest
@@ -34,9 +36,9 @@ def create_owner(session:SessionDep, data:OwnerCreate):
     return new_owner
 
 @router.post("/login")
-def login(user_data: LoginRequest, session: SessionDep):
+def login( session: SessionDep, user_data: OAuth2PasswordRequestForm = Depends()):
 
-    user = session.exec(select(Owner).where(Owner.email == user_data.email)).first()
+    user = session.exec(select(Owner).where(Owner.email == user_data.username)).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
