@@ -1,5 +1,5 @@
 from sqlmodel import Field, SQLModel
-from typing import Optional, Literal
+from typing import Optional
 from enum import Enum
 
 class GenderType(str, Enum):
