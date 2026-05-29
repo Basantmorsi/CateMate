@@ -4,11 +4,18 @@ from sqlmodel import select
 from CateMate.models.cat import Cat
 from CateMate.models.catphoto import CatPhoto
 from CateMate.schemas.cat import CatCreate, CatRead
+from CateMate.schemas.catphoto import CatPhotoRead
 from CateMate.utils.auth import get_current_user
 from CateMate.db import SessionDep
 from CateMate.utils.cloudinary import upload_image
 
 router = APIRouter(prefix="/cats", tags=["Cats"])
+
+@router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
+def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
+    cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
+    return cats
+
 
 @router.post("/", response_model= CatRead ,status_code=status.HTTP_201_CREATED)
 def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(get_current_user)):
@@ -55,6 +62,15 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
 
     return cat_photo
 
+@router.get("/{cat_id}/images", response_model= list[CatPhotoRead] ,status_code=status.HTTP_200_OK)
+def get_cat_photos(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user)):
+    cat = session.get(Cat, cat_id)
+    if not cat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found")
+    if int(cat.owner_id) != int(owner_id):
+        raise HTTPException(status_code=403, detail="Not your cat")
+    images = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id)).all()
+    return images
 #@router.get("/", response_model= list[CatRead] ,status_code=status.HTTP_200_OK)
 #def get_cats(session:SessionDep):
  #   cats = session.exec(select(Cat)).all()
@@ -62,9 +78,6 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
    # return cats
 
 
-@router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
-def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
-    cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
-    return cats
+
 
 #cloudinary.uploader.destroy(cat_image.public_id)

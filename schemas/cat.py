@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from enum import Enum
 from typing import Optional
 
@@ -23,4 +23,4 @@ class CatRead(BaseModel):
     gender: Optional[CatGender] = CatGender.MALE
     color: str
     notes: Optional[str]= None
-    model_config = ConfigDict(from_attributes=True)
+
