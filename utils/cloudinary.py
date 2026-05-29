@@ -8,9 +8,12 @@ cloudinary.config(
     api_secret= os.getenv("CLOUDINARY_API_SECRET"),
 )
 
-def upload_image(file, folder:str = "catemate") -> str:
+def upload_image(file, folder:str = "catemate") -> dict:
     result = cloudinary.uploader.upload(file, folder=folder)
-    return result["secure_url"]
+    return {
+        "secure_url": result["secure_url"],
+        "public_id": result["public_id"],
+    }
 
 def delete_image(public_id: str):
     cloudinary.uploader.destroy(public_id)

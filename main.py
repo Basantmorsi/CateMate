@@ -1,8 +1,12 @@
 
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 from .db_init import create_db
 from .routers import owners, countries, cities, seed, cats
+
+load_dotenv()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
