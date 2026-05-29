@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
 from fastapi.params import File
+from sqlmodel import select
 from CateMate.models.cat import Cat
 from CateMate.models.catphoto import CatPhoto
 from CateMate.schemas.cat import CatCreate, CatRead
@@ -54,5 +55,16 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
 
     return cat_photo
 
+#@router.get("/", response_model= list[CatRead] ,status_code=status.HTTP_200_OK)
+#def get_cats(session:SessionDep):
+ #   cats = session.exec(select(Cat)).all()
+  #  print(type(cats[0]), cats[0])
+   # return cats
+
+
+@router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
+def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
+    cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
+    return cats
 
 #cloudinary.uploader.destroy(cat_image.public_id)

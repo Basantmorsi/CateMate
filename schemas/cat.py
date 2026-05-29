@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from enum import Enum
+from typing import Optional
 
 class CatGender(str, Enum):
     MALE = "MALE"
@@ -19,6 +20,7 @@ class CatRead(BaseModel):
     name: str
     age: int
     breed_id: int
-    gender: CatGender
+    gender: Optional[CatGender] = CatGender.MALE
     color: str
-    notes: str | None = None
+    notes: Optional[str]= None
+    model_config = ConfigDict(from_attributes=True)
