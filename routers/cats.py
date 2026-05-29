@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
 from fastapi.params import File
+from fastapi.responses import RedirectResponse
 from sqlmodel import select
 from CateMate.models.cat import Cat
 from CateMate.models.catphoto import CatPhoto
@@ -71,6 +72,22 @@ def get_cat_photos(cat_id:int, session: SessionDep, owner_id:int = Depends(get_c
         raise HTTPException(status_code=403, detail="Not your cat")
     images = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id)).all()
     return images
+
+@router.get("/{cat_id}/images/{image_id}")
+def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
+    cat = session.get(Cat,cat_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="Cat not found")
+    if int(cat.owner_id) != int(owner_id):
+        raise HTTPException(status_code=403, detail="Not your cat")
+    image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id ).where(CatPhoto.id == image_id)).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return RedirectResponse(image.file_path)
+
+
+
+
 #@router.get("/", response_model= list[CatRead] ,status_code=status.HTTP_200_OK)
 #def get_cats(session:SessionDep):
  #   cats = session.exec(select(Cat)).all()
