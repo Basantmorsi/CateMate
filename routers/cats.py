@@ -2,7 +2,7 @@ import cloudinary.uploader
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
 from fastapi.params import File
 from fastapi.responses import RedirectResponse
-from sqlmodel import select
+from sqlmodel import select, Session
 from CateMate.models.cat import Cat
 from CateMate.models.catphoto import CatPhoto
 from CateMate.schemas.cat import CatCreate, CatRead
@@ -12,6 +12,16 @@ from CateMate.db import SessionDep
 from CateMate.utils.cloudinary import upload_image
 
 router = APIRouter(prefix="/cats", tags=["Cats"])
+
+
+def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
+    cat = session.get(Cat, cat_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="Cat not found")
+    if int(cat.owner_id) != int(owner_id):
+        raise HTTPException(status_code=403, detail="Not your cat")
+    return
+
 
 @router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
 def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
@@ -42,11 +52,7 @@ def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(
 
 @router.post("/{cat_id}/images", status_code=status.HTTP_201_CREATED)
 def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user), image: UploadFile = File(...)):
-    cat = session.get(Cat, cat_id)
-    if not cat:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found")
-    if int(cat.owner_id) != int(owner_id):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not the cat owner")
+    check_cat_and_owner(cat_id, owner_id, session)
     result = upload_image(image.file, folder=f"catemate/cats/{cat_id}")
     cat_photo = CatPhoto(
         cat_id=cat_id,
@@ -66,21 +72,13 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
 
 @router.get("/{cat_id}/images", response_model= list[CatPhotoRead] ,status_code=status.HTTP_200_OK)
 def get_cat_images(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user)):
-    cat = session.get(Cat, cat_id)
-    if not cat:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cat not found")
-    if int(cat.owner_id) != int(owner_id):
-        raise HTTPException(status_code=403, detail="Not your cat")
+    check_cat_and_owner(cat_id, owner_id, session)
     images = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id)).all()
     return images
 
 @router.get("/{cat_id}/images/{image_id}")
 def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
-    cat = session.get(Cat,cat_id)
-    if not cat:
-        raise HTTPException(status_code=404, detail="Cat not found")
-    if int(cat.owner_id) != int(owner_id):
-        raise HTTPException(status_code=403, detail="Not your cat")
+    check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id ).where(CatPhoto.id == image_id)).first()
     if not image:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -88,11 +86,7 @@ def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depen
 
 @router.delete("/{cat_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_cat_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
-    cat = session.get(Cat, cat_id)
-    if not cat:
-        raise HTTPException(status_code=404, detail="Cat not found")
-    if int(cat.owner_id) != int(owner_id):
-        raise HTTPException(status_code=403, detail="Not your cat")
+    check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id).where(CatPhoto.id == image_id)).first()
     if not image:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -103,6 +97,8 @@ def delete_cat_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int 
     except Exception:
         session.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete image")
+
+
 
 #@router.get("/", response_model= list[CatRead] ,status_code=status.HTTP_200_OK)
 #def get_cats(session:SessionDep):
