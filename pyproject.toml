@@ -14,3 +14,10 @@ dependencies = [
     "python-multipart>=0.0.28",
     "sqlmodel>=0.0.38",
 ]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+]
