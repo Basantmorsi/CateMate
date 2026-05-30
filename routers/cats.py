@@ -28,6 +28,12 @@ def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
     cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
     return cats
 
+@router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
+def get_cat(session: SessionDep, cat_id: int, owner_id: int = Depends(get_current_user)):
+    check_cat_and_owner(cat_id, owner_id, session)
+    cat = session.exec(select(Cat).where(Cat.id == cat_id).where(Cat.owner_id==owner_id)).first()
+    return cat
+
 
 @router.post("/", response_model= CatRead ,status_code=status.HTTP_201_CREATED)
 def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(get_current_user)):
