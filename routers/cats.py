@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import select, Session
 from CateMate.models.cat import Cat
 from CateMate.models.catphoto import CatPhoto
-from CateMate.schemas.cat import CatCreate, CatRead
+from CateMate.schemas.cat import CatCreate, CatRead, CatUpdate
 from CateMate.schemas.catphoto import CatPhotoRead
 from CateMate.utils.auth import get_current_user
 from CateMate.db import SessionDep
@@ -20,7 +20,7 @@ def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
         raise HTTPException(status_code=404, detail="Cat not found")
     if int(cat.owner_id) != int(owner_id):
         raise HTTPException(status_code=403, detail="Not your cat")
-    return
+    return cat
 
 
 @router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
@@ -30,8 +30,25 @@ def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
 def get_cat(session: SessionDep, cat_id: int, owner_id: int = Depends(get_current_user)):
-    check_cat_and_owner(cat_id, owner_id, session)
+    cat = check_cat_and_owner(cat_id, owner_id, session)
     cat = session.exec(select(Cat).where(Cat.id == cat_id).where(Cat.owner_id==owner_id)).first()
+    return cat
+
+@router.patch("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
+def update_cat(cat_id:int, updated_cat:CatUpdate, session: SessionDep, owner_id: int = Depends(get_current_user)):
+    cat = check_cat_and_owner(cat_id, owner_id, session)
+    cat_data = updated_cat.model_dump(exclude_unset=True)
+    for key, value in cat_data.items():
+        setattr(cat, key, value)
+
+    try:
+        session.add(cat)
+        session.commit()
+        session.refresh(cat)
+    except Exception:
+        session.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update cat")
+
     return cat
 
 
@@ -58,7 +75,7 @@ def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(
 
 @router.post("/{cat_id}/images", status_code=status.HTTP_201_CREATED)
 def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user), image: UploadFile = File(...)):
-    check_cat_and_owner(cat_id, owner_id, session)
+    cat = check_cat_and_owner(cat_id, owner_id, session)
     result = upload_image(image.file, folder=f"catemate/cats/{cat_id}")
     cat_photo = CatPhoto(
         cat_id=cat_id,
@@ -78,13 +95,13 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
 
 @router.get("/{cat_id}/images", response_model= list[CatPhotoRead] ,status_code=status.HTTP_200_OK)
 def get_cat_images(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user)):
-    check_cat_and_owner(cat_id, owner_id, session)
+    cat = check_cat_and_owner(cat_id, owner_id, session)
     images = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id)).all()
     return images
 
 @router.get("/{cat_id}/images/{image_id}")
 def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
-    check_cat_and_owner(cat_id, owner_id, session)
+    cat = check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id ).where(CatPhoto.id == image_id)).first()
     if not image:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -92,7 +109,7 @@ def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depen
 
 @router.delete("/{cat_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_cat_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
-    check_cat_and_owner(cat_id, owner_id, session)
+    cat = check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id).where(CatPhoto.id == image_id)).first()
     if not image:
         raise HTTPException(status_code=404, detail="Photo not found")

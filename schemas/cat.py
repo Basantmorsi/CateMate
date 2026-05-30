@@ -25,7 +25,7 @@ class CatRead(BaseModel):
     notes: Optional[str]= None
 
 
-class CateUpdate(BaseModel):
+class CatUpdate(BaseModel):
     name: str | None = None
     age: int | None = None
     breed_id: int | None = None
