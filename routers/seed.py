@@ -34,7 +34,6 @@ def seed_breed(session:SessionDep):
 
     return {"status": "seed executed"}
 
-
 @router.post("/country", status_code=status.HTTP_201_CREATED)
 def seed_country(session:SessionDep):
     if not countries_seed:
@@ -52,7 +51,6 @@ def seed_country(session:SessionDep):
         raise e
 
     return {"status": "seed executed"}
-
 
 @router.post("/city", status_code=status.HTTP_201_CREATED)
 def seed_city(session:SessionDep):

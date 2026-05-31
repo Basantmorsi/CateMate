@@ -511,7 +511,7 @@
       "name": "breeds",
       "item": [
         {
-          "name": "New Request",
+          "name": "Get Breeds",
           "request": {
             "auth": {
               "type": "noauth"
@@ -530,6 +530,138 @@
               "port": "8000",
               "path": [
                 "breeds"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "seeds",
+      "item": [
+        {
+          "name": "Seed Country",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/seed/country",
+              "protocol": "http",
+              "host": [
+                "127",
+                "0",
+                "0",
+                "1"
+              ],
+              "port": "8000",
+              "path": [
+                "seed",
+                "country"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed City",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/seed/city",
+              "protocol": "http",
+              "host": [
+                "127",
+                "0",
+                "0",
+                "1"
+              ],
+              "port": "8000",
+              "path": [
+                "seed",
+                "city"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Breed",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/seed/breed",
+              "protocol": "http",
+              "host": [
+                "127",
+                "0",
+                "0",
+                "1"
+              ],
+              "port": "8000",
+              "path": [
+                "seed",
+                "breed"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Owner",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/seed/owner",
+              "protocol": "http",
+              "host": [
+                "127",
+                "0",
+                "0",
+                "1"
+              ],
+              "port": "8000",
+              "path": [
+                "seed",
+                "owner"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Cat",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/seed/cat",
+              "protocol": "http",
+              "host": [
+                "127",
+                "0",
+                "0",
+                "1"
+              ],
+              "port": "8000",
+              "path": [
+                "seed",
+                "cat"
               ]
             }
           },
