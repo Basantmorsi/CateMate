@@ -4,6 +4,7 @@ from fastapi.params import File
 from fastapi.responses import RedirectResponse
 from sqlmodel import select, Session
 from CateMate.models.cat import Cat
+from CateMate.models.owner import Owner
 from CateMate.models.catphoto import CatPhoto
 from CateMate.schemas.cat import CatCreate, CatRead, CatUpdate
 from CateMate.schemas.catphoto import CatPhotoRead
@@ -26,6 +27,16 @@ def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
 @router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
 def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
     cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
+    return cats
+
+@router.get("/city/{city_id}", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
+def get_cat_by_city(session: SessionDep, city_id: int):
+    cats = session.exec(select(Cat).join(Owner, Cat.owner_id == Owner.id).where(Owner.city_id==city_id)).all()
+    return cats
+
+@router.get("/breed/{breed_id}", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
+def get_cat_by_breed(session: SessionDep, breed_id: int):
+    cats = session.exec(select(Cat).where(Cat.breed_id==breed_id)).all()
     return cats
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from .db_init import create_db
-from .routers import owners, countries, cities, seed, cats
+from .routers import owners, countries, cities, seed, cats, breeds
 
 load_dotenv()
 
@@ -21,6 +21,7 @@ app.include_router(countries.router)
 app.include_router(cities.router)
 app.include_router(seed.router)
 app.include_router(cats.router)
+app.include_router(breeds.router)
 
 @app.get("/")
 def read_root():
