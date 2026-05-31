@@ -72,7 +72,6 @@ CateMate/
 │   ├── cities.py
 │   └── countries.py
 │   └── breeds.py
-
 ├── schemas/         
 │   ├── owner.py
 │   ├── cat.py
@@ -87,6 +86,12 @@ CateMate/
 ├── tests/           
 │   ├── conftest.py
 │   └── test_cats.py
+├── seeds/         
+│   ├── seed_breed.py
+│   ├── seed_cat.py
+│   ├── seed_city.py
+│   ├── seed_country.py
+│   ├── seed_owner.py
 ├── main.py
 ├── db.py
 ├── db_init.py
