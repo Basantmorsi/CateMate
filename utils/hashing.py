@@ -1,11 +1,15 @@
-from passlib.context import CryptContext
+import bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def hash_password(password:str):
-    print("PASSWORD RAW:", password, "LEN:", len(password))
-    print("PASSWORD RECEIVED:", repr(password))
-    return pwd_context.hash(password)
+def hash_password(password: str) -> str:
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
-def verify_password(password: str, hashed_password:str):
-    return pwd_context.verify(password, hashed_password)
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except ValueError:
+        # Stored value isn't a valid bcrypt hash (legacy/seed/corrupt data).
+        # Treat as a failed match rather than crashing the login request.
+        return False

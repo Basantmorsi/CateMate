@@ -14,11 +14,14 @@ from CateMate.utils.cloudinary import upload_image
 
 router = APIRouter(prefix="/cats", tags=["Cats"])
 
-
-def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
+def select_cat(cat_id: int, session:Session):
     cat = session.get(Cat, cat_id)
     if not cat:
         raise HTTPException(status_code=404, detail="Cat not found")
+    return cat
+
+def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
+    cat = select_cat(cat_id, session)
     if int(cat.owner_id) != int(owner_id):
         raise HTTPException(status_code=403, detail="Not your cat")
     return cat
@@ -37,6 +40,13 @@ def get_cat_by_city(session: SessionDep, city_id: int):
 @router.get("/breed/{breed_id}", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
 def get_cat_by_breed(session: SessionDep, breed_id: int):
     cats = session.exec(select(Cat).where(Cat.breed_id==breed_id)).all()
+    return cats
+
+# Public: every cat on the platform. Registered before /{cat_id} so "all" is
+# not matched as a cat id.
+@router.get("/all", response_model=list[CatRead], status_code=status.HTTP_200_OK)
+def get_all_cats(session: SessionDep):
+    cats = session.exec(select(Cat)).all()
     return cats
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
@@ -105,8 +115,9 @@ def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get
     return cat_photo
 
 @router.get("/{cat_id}/images", response_model= list[CatPhotoRead] ,status_code=status.HTTP_200_OK)
-def get_cat_images(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user)):
-    cat = check_cat_and_owner(cat_id, owner_id, session)
+def get_cat_images(cat_id:int, session: SessionDep):
+
+    select_cat(cat_id, session)
     images = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id)).all()
     return images
 
