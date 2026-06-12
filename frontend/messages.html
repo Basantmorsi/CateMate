@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messages – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="messages"></app-nav>
+
+      <v-main>
+        <v-container class="py-8" style="max-width: 760px;">
+          <h1 class="text-h5 font-weight-bold mb-6">
+            <v-icon icon="mdi-email" class="mr-2"></v-icon>Messages
+          </h1>
+
+          <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+          <v-list v-else-if="messages.length > 0" lines="three">
+            <template v-for="(msg, i) in messages" :key="msg.id">
+              <v-list-item>
+                <template v-slot:prepend>
+                  <v-avatar :color="msg.sender_id === me ? 'primary' : 'pink'">
+                    <v-icon :icon="msg.sender_id === me ? 'mdi-arrow-up' : 'mdi-arrow-down'" color="white"></v-icon>
+                  </v-avatar>
+                </template>
+                <v-list-item-title class="font-weight-medium">
+                  <span v-if="msg.sender_id === me">To {{ ownerName(msg.recipient_id) }}</span>
+                  <span v-else>From {{ ownerName(msg.sender_id) }}</span>
+                  <v-chip v-if="msg.cat_id" size="x-small" class="ml-2" variant="tonal">about cat #{{ msg.cat_id }}</v-chip>
+                </v-list-item-title>
+                <v-list-item-subtitle class="text-medium-emphasis mt-1" style="-webkit-line-clamp: unset;">
+                  {{ msg.content }}
+                </v-list-item-subtitle>
+                <template v-slot:append>
+                  <div class="text-right">
+                    <div class="text-caption text-medium-emphasis">{{ formatDate(msg.created_at) }}</div>
+                    <v-btn
+                      v-if="msg.sender_id !== me"
+                      size="small"
+                      variant="text"
+                      color="primary"
+                      prepend-icon="mdi-reply"
+                      @click="openReply(msg)"
+                    >Reply</v-btn>
+                  </div>
+                </template>
+              </v-list-item>
+              <v-divider v-if="i < messages.length - 1"></v-divider>
+            </template>
+          </v-list>
+
+          <v-empty-state
+            v-else
+            icon="mdi-email-outline"
+            title="No messages yet"
+            text="When you message an owner from Browse, the conversation shows up here."
+          >
+            <template v-slot:actions>
+              <v-btn color="primary" href="/browse.html">Browse cats</v-btn>
+            </template>
+          </v-empty-state>
+        </v-container>
+      </v-main>
+
+      <!-- Reply dialog -->
+      <v-dialog v-model="replyDialog" max-width="500">
+        <v-card rounded="lg" v-if="replyTo">
+          <v-card-title class="pt-5 px-6">Reply to {{ ownerName(replyTo.sender_id) }}</v-card-title>
+          <v-card-text class="px-6">
+            <v-alert v-if="replyError" type="error" variant="tonal" class="mb-3">{{ replyError }}</v-alert>
+            <v-textarea v-model="replyText" label="Your message" variant="outlined" rows="4" auto-grow></v-textarea>
+          </v-card-text>
+          <v-card-actions class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="replyDialog = false">Cancel</v-btn>
+            <v-btn color="primary" :loading="sending" :disabled="!replyText" @click="sendReply">Send</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+        {{ snackbar.text }}
+      </v-snackbar>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          me: null,
+          messages: [],
+          owners: {},
+          loading: true,
+          replyDialog: false,
+          replyTo: null,
+          replyText: '',
+          replyError: '',
+          sending: false,
+          snackbar: { show: false, text: '', color: 'success' },
+        }
+      },
+      async mounted() {
+        const token = localStorage.getItem('cm_token')
+        if (!token) { window.location.href = '/login.html'; return }
+        this.me = this.decodeOwnerId(token)
+        await Promise.all([this.fetchMessages(), this.fetchOwners()])
+        this.loading = false
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        decodeOwnerId(token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]))
+            return parseInt(payload.sub)
+          } catch (e) { return null }
+        },
+        ownerName(id) {
+          return this.owners[id] || `owner #${id}`
+        },
+        formatDate(iso) {
+          const d = new Date(iso)
+          return isNaN(d) ? '' : d.toLocaleString()
+        },
+        async fetchMessages() {
+          const res = await fetch('/messages/', { headers: this.authHeader() })
+          if (res.status === 401) { window.location.href = '/login.html'; return }
+          this.messages = await res.json()
+        },
+        async fetchOwners() {
+          const res = await fetch('/owners/')
+          if (!res.ok) return
+          const owners = await res.json()
+          this.owners = Object.fromEntries(owners.map(o => [o.id, o.name]))
+        },
+        openReply(msg) {
+          this.replyTo = msg
+          this.replyText = ''
+          this.replyError = ''
+          this.replyDialog = true
+        },
+        async sendReply() {
+          this.replyError = ''
+          this.sending = true
+          try {
+            const res = await fetch('/messages/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+              body: JSON.stringify({
+                recipient_id: this.replyTo.sender_id,
+                cat_id: this.replyTo.cat_id,
+                content: this.replyText,
+              }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) { this.replyError = data.detail || 'Failed to send reply'; return }
+            this.replyDialog = false
+            this.snackbar = { show: true, text: 'Reply sent', color: 'success' }
+            await this.fetchMessages()
+          } catch (e) {
+            this.replyError = 'Network error'
+          } finally {
+            this.sending = false
+          }
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>

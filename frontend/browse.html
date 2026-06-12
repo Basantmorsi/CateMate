@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browse Cats – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="browse"></app-nav>
+
+      <v-main>
+        <v-container class="py-8">
+          <h1 class="text-h5 font-weight-bold mb-6">Browse Cats</h1>
+
+          <!-- Filters -->
+          <v-row class="mb-6">
+            <v-col cols="12" sm="6">
+              <v-select
+                v-model="selectedCity"
+                label="Filter by city"
+                :items="cities"
+                item-title="name"
+                item-value="id"
+                prepend-inner-icon="mdi-city-variant-outline"
+                variant="outlined"
+                clearable
+                :loading="loadingFilters"
+                @update:model-value="onCityChange"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-select
+                v-model="selectedBreed"
+                label="Filter by breed"
+                :items="breeds"
+                item-title="name"
+                item-value="id"
+                prepend-inner-icon="mdi-paw"
+                variant="outlined"
+                clearable
+                :loading="loadingFilters"
+                @update:model-value="onBreedChange"
+              ></v-select>
+            </v-col>
+          </v-row>
+
+          <!-- Results -->
+          <v-progress-circular v-if="loadingCats" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+          <v-row v-else-if="cats.length > 0">
+            <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4" class="d-flex">
+              <v-card rounded="lg" elevation="2" class="d-flex flex-column flex-grow-1">
+                <v-img
+                  :src="catCover(cat)"
+                  height="200"
+                  cover
+                  :style="hasPhotos(cat) ? 'cursor:pointer' : ''"
+                  @click="hasPhotos(cat) && openGallery(cat)"
+                >
+                  <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" class="ma-2" color="rgba(0,0,0,0.6)">
+                    <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
+                  </v-chip>
+                </v-img>
+                <v-card-title class="d-flex align-center">
+                  <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+                  {{ cat.name }}
+                  <v-spacer></v-spacer>
+                  <v-chip :color="cat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal">
+                    {{ cat.gender }}
+                  </v-chip>
+                </v-card-title>
+                <v-card-text class="flex-grow-1">
+                  <div><strong>Breed:</strong> {{ breedName(cat.breed_id) }}</div>
+                  <div><strong>Age:</strong> {{ cat.age }} year{{ cat.age !== 1 ? 's' : '' }}</div>
+                  <div><strong>Color:</strong> {{ cat.color }}</div>
+                  <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn
+                    :icon="likedIds.has(cat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
+                    :color="likedIds.has(cat.id) ? 'pink' : 'grey'"
+                    variant="text"
+                    @click="toggleLike(cat)"
+                  ></v-btn>
+                  <v-spacer></v-spacer>
+                  <v-btn variant="text" color="primary" prepend-icon="mdi-email-outline" @click="openMessage(cat)">
+                    Message owner
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <v-empty-state
+            v-else
+            icon="mdi-cat"
+            title="No cats found"
+            :text="(selectedCity || selectedBreed) ? 'No cats match the selected filter.' : 'No cats have been added yet.'"
+          ></v-empty-state>
+        </v-container>
+      </v-main>
+
+      <!-- Photo gallery dialog -->
+      <v-dialog v-model="galleryDialog" max-width="700">
+        <v-card rounded="lg" v-if="galleryCat">
+          <v-card-title class="d-flex align-center pt-5 px-6">
+            <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+            {{ galleryCat.name }}'s photos
+            <v-spacer></v-spacer>
+            <v-btn icon="mdi-close" variant="text" @click="galleryDialog = false"></v-btn>
+          </v-card-title>
+          <v-card-text class="px-6 pb-6">
+            <v-carousel v-if="galleryPhotos.length" height="450" hide-delimiter-background show-arrows="hover">
+              <v-carousel-item
+                v-for="photo in galleryPhotos"
+                :key="photo.id"
+                :src="photo.file_path"
+                cover
+              ></v-carousel-item>
+            </v-carousel>
+            <p v-else class="text-medium-emphasis">No photos yet.</p>
+          </v-card-text>
+        </v-card>
+      </v-dialog>
+
+      <!-- Message owner dialog -->
+      <v-dialog v-model="messageDialog" max-width="500">
+        <v-card rounded="lg" v-if="messageCat">
+          <v-card-title class="pt-5 px-6">Message about {{ messageCat.name }}</v-card-title>
+          <v-card-text class="px-6">
+            <v-alert v-if="messageError" type="error" variant="tonal" class="mb-3">{{ messageError }}</v-alert>
+            <v-textarea
+              v-model="messageText"
+              label="Your message"
+              variant="outlined"
+              rows="4"
+              auto-grow
+            ></v-textarea>
+          </v-card-text>
+          <v-card-actions class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="messageDialog = false">Cancel</v-btn>
+            <v-btn color="primary" :loading="sending" :disabled="!messageText" @click="sendMessage">Send</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+        {{ snackbar.text }}
+      </v-snackbar>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          isLoggedIn: !!localStorage.getItem('cm_token'),
+          cities: [],
+          breeds: [],
+          cats: [],
+          photos: {},
+          selectedCity: null,
+          selectedBreed: null,
+          loadingFilters: true,
+          loadingCats: false,
+          likedIds: new Set(),
+          galleryDialog: false,
+          galleryCat: null,
+          galleryPhotos: [],
+          messageDialog: false,
+          messageCat: null,
+          messageText: '',
+          messageError: '',
+          sending: false,
+          snackbar: { show: false, text: '', color: 'success' },
+        }
+      },
+      async mounted() {
+        const [citiesRes, breedsRes] = await Promise.all([
+          fetch('/cities/'),
+          fetch('/breeds/'),
+        ])
+        this.cities = await citiesRes.json()
+        this.breeds = await breedsRes.json()
+        this.loadingFilters = false
+        if (this.isLoggedIn) await this.fetchLiked()
+        // Show every cat by default; filters narrow it down.
+        await this.fetchCats('/cats/all')
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        notify(text, color = 'success') {
+          this.snackbar = { show: true, text, color }
+        },
+        async fetchLiked() {
+          const res = await fetch('/likes/', { headers: this.authHeader() })
+          if (!res.ok) return
+          const cats = await res.json()
+          this.likedIds = new Set(cats.map(c => c.id))
+        },
+        async toggleLike(cat) {
+          if (!this.isLoggedIn) { window.location.href = '/login.html'; return }
+          const liked = this.likedIds.has(cat.id)
+          const res = await fetch(`/likes/${cat.id}`, {
+            method: liked ? 'DELETE' : 'POST',
+            headers: this.authHeader(),
+          })
+          if (!res.ok) { this.notify('Could not update like', 'error'); return }
+          // Reassign the Set so Vue picks up the reactivity change
+          const next = new Set(this.likedIds)
+          if (liked) { next.delete(cat.id); this.notify('Removed from liked') }
+          else { next.add(cat.id); this.notify('Added to liked') }
+          this.likedIds = next
+        },
+        openMessage(cat) {
+          if (!this.isLoggedIn) { window.location.href = '/login.html'; return }
+          this.messageCat = cat
+          this.messageText = ''
+          this.messageError = ''
+          this.messageDialog = true
+        },
+        async sendMessage() {
+          this.messageError = ''
+          this.sending = true
+          try {
+            const res = await fetch('/messages/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+              body: JSON.stringify({
+                recipient_id: this.messageCat.owner_id,
+                cat_id: this.messageCat.id,
+                content: this.messageText,
+              }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) { this.messageError = data.detail || 'Failed to send message'; return }
+            this.messageDialog = false
+            this.notify('Message sent')
+          } catch (e) {
+            this.messageError = 'Network error'
+          } finally {
+            this.sending = false
+          }
+        },
+        async onCityChange(cityId) {
+          this.selectedBreed = null
+          if (!cityId) { await this.fetchCats('/cats/all'); return }
+          await this.fetchCats(`/cats/city/${cityId}`)
+        },
+        async onBreedChange(breedId) {
+          this.selectedCity = null
+          if (!breedId) { await this.fetchCats('/cats/all'); return }
+          await this.fetchCats(`/cats/breed/${breedId}`)
+        },
+        async fetchCats(url) {
+          this.loadingCats = true
+          try {
+            const res = await fetch(url)
+            this.cats = await res.json()
+            await this.fetchPhotos()
+          } finally {
+            this.loadingCats = false
+          }
+        },
+        async fetchPhotos() {
+          // Load each cat's photos in parallel; the images endpoint is public.
+          const entries = await Promise.all(
+            this.cats.map(async (cat) => {
+              try {
+                const res = await fetch(`/cats/${cat.id}/images`)
+                return [cat.id, res.ok ? await res.json() : []]
+              } catch (e) {
+                return [cat.id, []]
+              }
+            })
+          )
+          this.photos = Object.fromEntries(entries)
+        },
+        breedName(breedId) {
+          const breed = this.breeds.find(b => b.id === breedId)
+          return breed ? breed.name : '—'
+        },
+        hasPhotos(cat) {
+          return !!(this.photos[cat.id] && this.photos[cat.id].length)
+        },
+        catCover(cat) {
+          return this.hasPhotos(cat) ? this.photos[cat.id][0].file_path : '/default-cat.svg'
+        },
+        openGallery(cat) {
+          this.galleryCat = cat
+          this.galleryPhotos = this.photos[cat.id] || []
+          this.galleryDialog = true
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>

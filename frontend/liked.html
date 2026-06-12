@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Liked Cats – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="liked"></app-nav>
+
+      <v-main>
+        <v-container class="py-8">
+          <h1 class="text-h5 font-weight-bold mb-6">
+            <v-icon icon="mdi-heart" color="pink" class="mr-2"></v-icon>Liked Cats
+          </h1>
+
+          <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+          <v-row v-else-if="cats.length > 0">
+            <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4">
+              <v-card rounded="lg" elevation="2">
+                <v-card-title class="d-flex align-center">
+                  <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+                  {{ cat.name }}
+                  <v-spacer></v-spacer>
+                  <v-chip :color="cat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal">
+                    {{ cat.gender }}
+                  </v-chip>
+                </v-card-title>
+                <v-card-text>
+                  <div><strong>Age:</strong> {{ cat.age }} year{{ cat.age !== 1 ? 's' : '' }}</div>
+                  <div><strong>Color:</strong> {{ cat.color }}</div>
+                  <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn variant="text" color="pink" prepend-icon="mdi-heart-off" @click="unlike(cat)">
+                    Remove
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <v-empty-state
+            v-else
+            icon="mdi-heart-outline"
+            title="No liked cats yet"
+            text="Browse cats and tap the heart to add them here."
+          >
+            <template v-slot:actions>
+              <v-btn color="primary" href="/browse.html">Browse cats</v-btn>
+            </template>
+          </v-empty-state>
+        </v-container>
+      </v-main>
+
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+        {{ snackbar.text }}
+      </v-snackbar>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          cats: [],
+          loading: true,
+          snackbar: { show: false, text: '', color: 'success' },
+        }
+      },
+      async mounted() {
+        if (!localStorage.getItem('cm_token')) { window.location.href = '/login.html'; return }
+        await this.fetchLiked()
+        this.loading = false
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        async fetchLiked() {
+          const res = await fetch('/likes/', { headers: this.authHeader() })
+          if (res.status === 401) { window.location.href = '/login.html'; return }
+          this.cats = await res.json()
+        },
+        async unlike(cat) {
+          const res = await fetch(`/likes/${cat.id}`, { method: 'DELETE', headers: this.authHeader() })
+          if (!res.ok && res.status !== 204) {
+            this.snackbar = { show: true, text: 'Could not remove', color: 'error' }
+            return
+          }
+          this.cats = this.cats.filter(c => c.id !== cat.id)
+          this.snackbar = { show: true, text: 'Removed from liked', color: 'success' }
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>

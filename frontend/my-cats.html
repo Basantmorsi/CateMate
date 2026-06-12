@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Cats – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="my-cats"></app-nav>
+
+      <v-main>
+        <v-container class="py-8">
+          <div class="d-flex align-center mb-6">
+            <h1 class="text-h5 font-weight-bold">My Cats</h1>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog">Add Cat</v-btn>
+          </div>
+
+          <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+          <v-row v-else-if="cats.length > 0">
+            <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4">
+              <v-card rounded="lg" elevation="2" hover style="cursor:pointer" @click="openDetail(cat)">
+                <v-card-title class="d-flex align-center">
+                  <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+                  {{ cat.name }}
+                  <v-spacer></v-spacer>
+                  <v-chip :color="cat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal">
+                    {{ cat.gender }}
+                  </v-chip>
+                </v-card-title>
+                <v-card-text>
+                  <div><strong>Age:</strong> {{ cat.age }} year{{ cat.age !== 1 ? 's' : '' }}</div>
+                  <div><strong>Color:</strong> {{ cat.color }}</div>
+                  <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn variant="text" color="primary" prepend-icon="mdi-image-multiple">View photos</v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <v-empty-state
+            v-else
+            icon="mdi-cat"
+            title="No cats yet"
+            text="Add your first cat profile to get started."
+          ></v-empty-state>
+        </v-container>
+      </v-main>
+
+      <!-- Add Cat Dialog -->
+      <v-dialog v-model="dialog" max-width="500">
+        <v-card rounded="lg">
+          <v-card-title class="pt-5 px-6">Add a Cat</v-card-title>
+          <v-card-text class="px-6">
+            <v-alert v-if="formError" type="error" variant="tonal" class="mb-4">{{ formError }}</v-alert>
+
+            <v-text-field v-model="newCat.name" label="Name" variant="outlined" class="mb-3"></v-text-field>
+            <v-text-field v-model.number="newCat.age" label="Age (years)" type="number" variant="outlined" class="mb-3"></v-text-field>
+
+            <v-select
+              v-model="newCat.breed_id"
+              label="Breed"
+              :items="breeds"
+              item-title="name"
+              item-value="id"
+              variant="outlined"
+              class="mb-3"
+            ></v-select>
+
+            <v-select
+              v-model="newCat.gender"
+              label="Gender"
+              :items="['MALE', 'FEMALE']"
+              variant="outlined"
+              class="mb-3"
+            ></v-select>
+
+            <v-text-field v-model="newCat.color" label="Color" variant="outlined" class="mb-3"></v-text-field>
+            <v-textarea v-model="newCat.notes" label="Notes (optional)" variant="outlined" rows="2"></v-textarea>
+          </v-card-text>
+          <v-card-actions class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
+            <v-btn color="primary" :loading="saving" @click="addCat">Add Cat</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Cat Detail / Photos Dialog -->
+      <v-dialog v-model="detailDialog" max-width="600">
+        <v-card rounded="lg" v-if="selectedCat">
+          <v-card-title class="d-flex align-center pt-5 px-6">
+            <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+            {{ selectedCat.name }}
+            <v-spacer></v-spacer>
+            <v-chip :color="selectedCat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal">
+              {{ selectedCat.gender }}
+            </v-chip>
+          </v-card-title>
+          <v-card-text class="px-6">
+            <div class="mb-1"><strong>Age:</strong> {{ selectedCat.age }} · <strong>Color:</strong> {{ selectedCat.color }}</div>
+            <div v-if="selectedCat.notes" class="text-medium-emphasis mb-2">{{ selectedCat.notes }}</div>
+
+            <v-divider class="my-4"></v-divider>
+
+            <h3 class="text-subtitle-1 font-weight-bold mb-3">Photos</h3>
+            <v-alert v-if="photoError" type="error" variant="tonal" class="mb-3">{{ photoError }}</v-alert>
+
+            <v-progress-circular v-if="loadingPhotos" indeterminate color="primary"></v-progress-circular>
+
+            <v-row v-else-if="photos.length > 0">
+              <v-col v-for="photo in photos" :key="photo.id" cols="6" sm="4">
+                <v-card variant="outlined">
+                  <v-img :src="photo.file_path" aspect-ratio="1" cover></v-img>
+                  <v-card-actions class="justify-end pa-1">
+                    <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deletePhoto(photo.id)"></v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-col>
+            </v-row>
+            <p v-else class="text-medium-emphasis">No photos yet.</p>
+
+            <v-divider class="my-4"></v-divider>
+
+            <v-file-input
+              v-model="uploadFile"
+              label="Upload a photo"
+              accept="image/*"
+              prepend-icon="mdi-camera"
+              variant="outlined"
+              density="comfortable"
+              class="mb-2"
+            ></v-file-input>
+            <v-btn color="primary" :loading="uploading" :disabled="!uploadFile" block @click="uploadPhoto">
+              Upload
+            </v-btn>
+          </v-card-text>
+          <v-card-actions class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          cats: [],
+          breeds: [],
+          loading: true,
+          dialog: false,
+          saving: false,
+          formError: '',
+          newCat: { name: '', age: null, breed_id: null, gender: 'MALE', color: '', notes: '' },
+          detailDialog: false,
+          selectedCat: null,
+          photos: [],
+          loadingPhotos: false,
+          photoError: '',
+          uploadFile: null,
+          uploading: false,
+        }
+      },
+      async mounted() {
+        const token = localStorage.getItem('cm_token')
+        if (!token) { window.location.href = '/login.html'; return }
+        await Promise.all([this.fetchCats(), this.fetchBreeds()])
+        this.loading = false
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        async fetchCats() {
+          const res = await fetch('/cats/', { headers: this.authHeader() })
+          if (res.status === 401) { window.location.href = '/login.html'; return }
+          this.cats = await res.json()
+        },
+        async fetchBreeds() {
+          const res = await fetch('/breeds/')
+          this.breeds = await res.json()
+        },
+        openDialog() {
+          this.formError = ''
+          this.newCat = { name: '', age: null, breed_id: null, gender: 'MALE', color: '', notes: '' }
+          this.dialog = true
+        },
+        async addCat() {
+          this.formError = ''
+          this.saving = true
+          try {
+            const res = await fetch('/cats/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+              body: JSON.stringify(this.newCat),
+            })
+            const data = await res.json()
+            if (!res.ok) { this.formError = data.detail || 'Failed to add cat'; return }
+            this.cats.push(data)
+            this.dialog = false
+          } catch (e) {
+            this.formError = 'Network error'
+          } finally {
+            this.saving = false
+          }
+        },
+        async openDetail(cat) {
+          this.selectedCat = cat
+          this.photos = []
+          this.photoError = ''
+          this.uploadFile = null
+          this.detailDialog = true
+          await this.fetchPhotos(cat.id)
+        },
+        async fetchPhotos(catId) {
+          this.loadingPhotos = true
+          try {
+            const res = await fetch(`/cats/${catId}/images`, { headers: this.authHeader() })
+            if (res.status === 401) { window.location.href = '/login.html'; return }
+            this.photos = await res.json()
+          } catch (e) {
+            this.photoError = 'Failed to load photos'
+          } finally {
+            this.loadingPhotos = false
+          }
+        },
+        async uploadPhoto() {
+          if (!this.uploadFile) return
+          // v-file-input may yield a File or an array of File depending on Vuetify version
+          let file = Array.isArray(this.uploadFile) ? this.uploadFile[0] : this.uploadFile
+          this.uploading = true
+          this.photoError = ''
+          try {
+            const fd = new FormData()
+            fd.append('image', file)
+            // Do not set Content-Type — the browser adds the multipart boundary
+            const res = await fetch(`/cats/${this.selectedCat.id}/images`, {
+              method: 'POST',
+              headers: this.authHeader(),
+              body: fd,
+            })
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}))
+              this.photoError = data.detail || 'Upload failed'
+              return
+            }
+            this.uploadFile = null
+            await this.fetchPhotos(this.selectedCat.id)
+          } catch (e) {
+            this.photoError = 'Network error during upload'
+          } finally {
+            this.uploading = false
+          }
+        },
+        async deletePhoto(photoId) {
+          this.photoError = ''
+          try {
+            const res = await fetch(`/cats/${this.selectedCat.id}/images/${photoId}`, {
+              method: 'DELETE',
+              headers: this.authHeader(),
+            })
+            if (!res.ok && res.status !== 204) { this.photoError = 'Failed to delete photo'; return }
+            await this.fetchPhotos(this.selectedCat.id)
+          } catch (e) {
+            this.photoError = 'Network error during delete'
+          }
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>

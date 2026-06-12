@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="home"></app-nav>
+
+      <v-main>
+        <!-- Hero -->
+        <v-container class="py-12 text-center">
+          <v-icon icon="mdi-cat" size="80" color="primary" class="mb-4"></v-icon>
+          <h1 class="text-h3 font-weight-bold mb-4">Find the perfect mate for your cat</h1>
+          <p class="text-h6 text-medium-emphasis mb-8">
+            Create a profile for your cat, browse compatible cats in your area, and connect directly with other owners.
+          </p>
+          <div class="d-flex justify-center ga-4">
+            <v-btn href="/register.html" color="primary" size="large">Get started</v-btn>
+            <v-btn href="/browse.html" variant="outlined" color="primary" size="large">Browse cats</v-btn>
+          </div>
+        </v-container>
+
+        <v-divider></v-divider>
+
+        <!-- Breeds section -->
+        <v-container class="py-8">
+          <h2 class="text-h5 font-weight-bold mb-6">Available breeds</h2>
+          <v-progress-circular v-if="loading" indeterminate color="primary"></v-progress-circular>
+          <div v-else class="d-flex flex-wrap ga-2">
+            <v-chip
+              v-for="breed in breeds"
+              :key="breed.id"
+              color="primary"
+              variant="tonal"
+            >
+              {{ breed.name }}
+            </v-chip>
+          </div>
+          <p v-if="!loading && breeds.length === 0" class="text-medium-emphasis">
+            No breeds seeded yet. Call <code>POST /seed/breed</code> via <a href="/docs">/docs</a>.
+          </p>
+        </v-container>
+      </v-main>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          breeds: [],
+          loading: true,
+        }
+      },
+      async mounted() {
+        try {
+          const res = await fetch('/breeds/')
+          this.breeds = await res.json()
+        } finally {
+          this.loading = false
+        }
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>
