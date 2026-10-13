@@ -21,8 +21,19 @@
           <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
 
           <v-row v-else-if="cats.length > 0">
-            <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4">
-              <v-card rounded="lg" elevation="2">
+            <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4" class="d-flex">
+              <v-card rounded="lg" elevation="2" class="d-flex flex-column flex-grow-1">
+                <v-img
+                  :src="catCover(cat)"
+                  height="200"
+                  cover
+                  :style="hasPhotos(cat) ? 'cursor:pointer' : ''"
+                  @click="hasPhotos(cat) && openGallery(cat)"
+                >
+                  <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" class="ma-2" color="rgba(0,0,0,0.6)">
+                    <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
+                  </v-chip>
+                </v-img>
                 <v-card-title class="d-flex align-center">
                   <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
                   {{ cat.name }}
@@ -31,7 +42,8 @@
                     {{ cat.gender }}
                   </v-chip>
                 </v-card-title>
-                <v-card-text>
+                <v-card-text class="flex-grow-1">
+                  <div><strong>Breed:</strong> {{ breedName(cat.breed_id) }}</div>
                   <div><strong>Age:</strong> {{ cat.age }} year{{ cat.age !== 1 ? 's' : '' }}</div>
                   <div><strong>Color:</strong> {{ cat.color }}</div>
                   <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
@@ -39,6 +51,10 @@
                 <v-card-actions>
                   <v-btn variant="text" color="pink" prepend-icon="mdi-heart-off" @click="unlike(cat)">
                     Remove
+                  </v-btn>
+                  <v-spacer></v-spacer>
+                  <v-btn variant="text" color="primary" prepend-icon="mdi-email-outline" @click="openMessage(cat)">
+                    Message owner
                   </v-btn>
                 </v-card-actions>
               </v-card>
@@ -58,6 +74,29 @@
         </v-container>
       </v-main>
 
+      <!-- Photo gallery dialog -->
+      <v-dialog v-model="galleryDialog" max-width="700">
+        <v-card rounded="lg" v-if="galleryCat">
+          <v-card-title class="d-flex align-center pt-5 px-6">
+            <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
+            {{ galleryCat.name }}'s photos
+            <v-spacer></v-spacer>
+            <v-btn icon="mdi-close" variant="text" @click="galleryDialog = false"></v-btn>
+          </v-card-title>
+          <v-card-text class="px-6 pb-6">
+            <v-carousel v-if="galleryPhotos.length" height="450" hide-delimiter-background show-arrows="hover">
+              <v-carousel-item
+                v-for="photo in galleryPhotos"
+                :key="photo.id"
+                :src="photo.file_path"
+                cover
+              ></v-carousel-item>
+            </v-carousel>
+            <p v-else class="text-medium-emphasis">No photos yet.</p>
+          </v-card-text>
+        </v-card>
+      </v-dialog>
+
       <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
         {{ snackbar.text }}
       </v-snackbar>
@@ -75,12 +114,19 @@
       data() {
         return {
           cats: [],
+          breeds: [],
+          photos: {},
           loading: true,
+          galleryDialog: false,
+          galleryCat: null,
+          galleryPhotos: [],
           snackbar: { show: false, text: '', color: 'success' },
         }
       },
       async mounted() {
         if (!localStorage.getItem('cm_token')) { window.location.href = '/login.html'; return }
+        const breedsRes = await fetch('/breeds/')
+        this.breeds = await breedsRes.json()
         await this.fetchLiked()
         this.loading = false
       },
@@ -92,6 +138,41 @@
           const res = await fetch('/likes/', { headers: this.authHeader() })
           if (res.status === 401) { window.location.href = '/login.html'; return }
           this.cats = await res.json()
+          await this.fetchPhotos()
+        },
+        async fetchPhotos() {
+          // Load each cat's photos in parallel; the images endpoint is public.
+          const entries = await Promise.all(
+            this.cats.map(async (cat) => {
+              try {
+                const res = await fetch(`/cats/${cat.id}/images`)
+                return [cat.id, res.ok ? await res.json() : []]
+              } catch (e) {
+                return [cat.id, []]
+              }
+            })
+          )
+          this.photos = Object.fromEntries(entries)
+        },
+        breedName(breedId) {
+          const breed = this.breeds.find(b => b.id === breedId)
+          return breed ? breed.name : '—'
+        },
+        hasPhotos(cat) {
+          return !!(this.photos[cat.id] && this.photos[cat.id].length)
+        },
+        catCover(cat) {
+          return this.hasPhotos(cat) ? this.photos[cat.id][0].file_path : '/default-cat.svg'
+        },
+        openGallery(cat) {
+          this.galleryCat = cat
+          this.galleryPhotos = this.photos[cat.id] || []
+          this.galleryDialog = true
+        },
+        openMessage(cat) {
+          // Open the dedicated chat thread with this cat's owner.
+          const params = new URLSearchParams({ user: cat.owner_id, cat: cat.id, catName: cat.name })
+          window.location.href = `/chat.html?${params}`
         },
         async unlike(cat) {
           const res = await fetch(`/likes/${cat.id}`, { method: 'DELETE', headers: this.authHeader() })

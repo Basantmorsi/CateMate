@@ -29,7 +29,7 @@ function cmVuetify() {
 
 const CmNav = {
   // `current` is the page key so the nav can hide the link to the page you're on.
-  // One of: home | browse | my-cats | liked | messages | login | register
+  // One of: home | browse | my-cats | liked | messages | profile | login | register
   props: {
     current: { type: String, default: '' },
   },
@@ -57,6 +57,7 @@ const CmNav = {
           <v-btn v-if="current !== 'my-cats'" href="/my-cats.html" variant="text" prepend-icon="mdi-cat">My Cats</v-btn>
           <v-btn v-if="current !== 'liked'" href="/liked.html" variant="text" prepend-icon="mdi-heart">Liked</v-btn>
           <v-btn v-if="current !== 'messages'" href="/messages.html" variant="text" prepend-icon="mdi-email">Messages</v-btn>
+          <v-btn v-if="current !== 'profile'" href="/profile.html" variant="text" prepend-icon="mdi-account-circle">Profile</v-btn>
           <v-btn @click="logout" variant="text" prepend-icon="mdi-logout">Logout</v-btn>
         </template>
         <template v-else>

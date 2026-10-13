@@ -127,28 +127,6 @@
         </v-card>
       </v-dialog>
 
-      <!-- Message owner dialog -->
-      <v-dialog v-model="messageDialog" max-width="500">
-        <v-card rounded="lg" v-if="messageCat">
-          <v-card-title class="pt-5 px-6">Message about {{ messageCat.name }}</v-card-title>
-          <v-card-text class="px-6">
-            <v-alert v-if="messageError" type="error" variant="tonal" class="mb-3">{{ messageError }}</v-alert>
-            <v-textarea
-              v-model="messageText"
-              label="Your message"
-              variant="outlined"
-              rows="4"
-              auto-grow
-            ></v-textarea>
-          </v-card-text>
-          <v-card-actions class="px-6 pb-5">
-            <v-spacer></v-spacer>
-            <v-btn variant="text" @click="messageDialog = false">Cancel</v-btn>
-            <v-btn color="primary" :loading="sending" :disabled="!messageText" @click="sendMessage">Send</v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
-
       <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
         {{ snackbar.text }}
       </v-snackbar>
@@ -178,11 +156,6 @@
           galleryDialog: false,
           galleryCat: null,
           galleryPhotos: [],
-          messageDialog: false,
-          messageCat: null,
-          messageText: '',
-          messageError: '',
-          sending: false,
           snackbar: { show: false, text: '', color: 'success' },
         }
       },
@@ -227,33 +200,9 @@
         },
         openMessage(cat) {
           if (!this.isLoggedIn) { window.location.href = '/login.html'; return }
-          this.messageCat = cat
-          this.messageText = ''
-          this.messageError = ''
-          this.messageDialog = true
-        },
-        async sendMessage() {
-          this.messageError = ''
-          this.sending = true
-          try {
-            const res = await fetch('/messages/', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
-              body: JSON.stringify({
-                recipient_id: this.messageCat.owner_id,
-                cat_id: this.messageCat.id,
-                content: this.messageText,
-              }),
-            })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) { this.messageError = data.detail || 'Failed to send message'; return }
-            this.messageDialog = false
-            this.notify('Message sent')
-          } catch (e) {
-            this.messageError = 'Network error'
-          } finally {
-            this.sending = false
-          }
+          // Open the dedicated chat thread with this cat's owner.
+          const params = new URLSearchParams({ user: cat.owner_id, cat: cat.id, catName: cat.name })
+          window.location.href = `/chat.html?${params}`
         },
         async onCityChange(cityId) {
           this.selectedBreed = null

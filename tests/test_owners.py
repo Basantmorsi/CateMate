@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
 
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _register_payload(email="new@test.com", **overrides):
     payload = {
         "name": "New Owner",
@@ -66,3 +70,42 @@ def test_login_nonexistent_user(client: TestClient):
         data={"username": "ghost@test.com", "password": "whatever"},
     )
     assert response.status_code == 401
+
+
+def test_get_my_profile_success(client: TestClient, token):
+    # the `token` fixture seeds Test User / test@test.com
+    response = client.get("/owners/me", headers=_auth(token))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "test@test.com"
+    assert data["name"] == "Test User"
+
+
+def test_get_my_profile_excludes_password(client: TestClient, token):
+    response = client.get("/owners/me", headers=_auth(token))
+    assert response.status_code == 200
+    assert "password" not in response.json()
+
+
+def test_get_my_profile_requires_auth(client: TestClient):
+    assert client.get("/owners/me").status_code == 401
+
+
+def test_get_my_profile_invalid_token(client: TestClient):
+    assert client.get("/owners/me", headers=_auth("not-a-real-token")).status_code == 401
+
+
+def test_get_my_profile_returns_own_record(client: TestClient, make_owner, token_for):
+    # Each token must return its own owner, not just any owner.
+    owner_a = make_owner(email="a@test.com", name="Alice")
+    owner_b = make_owner(email="b@test.com", name="Bob")
+
+    response_a = client.get("/owners/me", headers=_auth(token_for(owner_a.id)))
+    assert response_a.status_code == 200
+    assert response_a.json()["id"] == owner_a.id
+    assert response_a.json()["email"] == "a@test.com"
+
+    response_b = client.get("/owners/me", headers=_auth(token_for(owner_b.id)))
+    assert response_b.status_code == 200
+    assert response_b.json()["id"] == owner_b.id
+    assert response_b.json()["email"] == "b@test.com"

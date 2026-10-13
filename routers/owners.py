@@ -5,7 +5,7 @@ from sqlmodel import select
 from CateMate.models.owner import Owner
 from CateMate.schemas.owner import OwnerCreate, OwnerRead, LoginRequest
 from CateMate.utils.hashing import hash_password, verify_password
-from CateMate.utils.auth import create_access_token
+from CateMate.utils.auth import create_access_token, get_current_user
 from CateMate.db import SessionDep
 
 
@@ -54,6 +54,15 @@ def login( session: SessionDep, user_data: OAuth2PasswordRequestForm = Depends()
         "access_token": token,
         "token_type": "bearer"
     }
+
+
+@router.get("/me", response_model=OwnerRead, status_code=status.HTTP_200_OK)
+def get_my_profile(session: SessionDep, owner_id: int = Depends(get_current_user)):
+    # get_current_user returns the JWT "sub" claim as a string, so convert first.
+    owner = session.get(Owner, int(owner_id))
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    return owner
 
 
 @router.get("/", response_model= list[OwnerRead], status_code=status.HTTP_200_OK)

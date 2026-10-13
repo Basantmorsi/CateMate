@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="profile"></app-nav>
+
+      <v-main>
+        <v-container class="py-8 d-flex justify-center">
+          <div style="width:100%;max-width:640px;">
+            <h1 class="text-h5 font-weight-bold mb-6">
+              <v-icon icon="mdi-account-circle" color="primary" class="mr-2"></v-icon>My Profile
+            </h1>
+
+            <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+            <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
+
+            <v-card v-else-if="owner" rounded="lg" elevation="2">
+              <v-card-item class="pa-6">
+                <template v-slot:prepend>
+                  <v-avatar color="primary" size="64" class="mr-2">
+                    <span class="text-h5">{{ initials(owner.name) }}</span>
+                  </v-avatar>
+                </template>
+                <v-card-title class="text-h6">{{ owner.name }}</v-card-title>
+                <v-card-subtitle>{{ owner.email }}</v-card-subtitle>
+              </v-card-item>
+
+              <v-divider></v-divider>
+
+              <v-list density="comfortable" class="py-2">
+                <v-list-item prepend-icon="mdi-city-variant-outline">
+                  <v-list-item-title>City</v-list-item-title>
+                  <v-list-item-subtitle>{{ cityName(owner.city_id) }}</v-list-item-subtitle>
+                </v-list-item>
+
+                <v-list-item prepend-icon="mdi-cake-variant-outline">
+                  <v-list-item-title>Age</v-list-item-title>
+                  <v-list-item-subtitle>{{ owner.age || '—' }}</v-list-item-subtitle>
+                </v-list-item>
+
+                <v-list-item prepend-icon="mdi-account-outline">
+                  <v-list-item-title>Gender</v-list-item-title>
+                  <v-list-item-subtitle>{{ pretty(owner.gender) }}</v-list-item-subtitle>
+                </v-list-item>
+
+                <v-list-item prepend-icon="mdi-phone-outline">
+                  <v-list-item-title>Phone</v-list-item-title>
+                  <v-list-item-subtitle>{{ owner.phone_number || '—' }}</v-list-item-subtitle>
+                </v-list-item>
+
+                <v-list-item prepend-icon="mdi-text-account">
+                  <v-list-item-title>Bio</v-list-item-title>
+                  <v-list-item-subtitle class="text-wrap">{{ owner.bio || '—' }}</v-list-item-subtitle>
+                </v-list-item>
+
+                <v-divider class="my-2"></v-divider>
+
+                <v-list-item prepend-icon="mdi-shield-account-outline">
+                  <v-list-item-title>Accept messages from</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <v-chip size="small" variant="tonal" color="primary">{{ pretty(owner.allow_message_from) }}</v-chip>
+                  </v-list-item-subtitle>
+                </v-list-item>
+              </v-list>
+            </v-card>
+          </div>
+        </v-container>
+      </v-main>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        return {
+          owner: null,
+          cities: [],
+          loading: true,
+          error: '',
+        }
+      },
+      async mounted() {
+        if (!localStorage.getItem('cm_token')) { window.location.href = '/login.html'; return }
+        // Cities are public and only needed to turn city_id into a name.
+        try {
+          const res = await fetch('/cities/')
+          if (res.ok) this.cities = await res.json()
+        } catch (e) { /* fall back to showing the raw id */ }
+        await this.fetchProfile()
+        this.loading = false
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        async fetchProfile() {
+          try {
+            const res = await fetch('/owners/me', { headers: this.authHeader() })
+            if (res.status === 401) { window.location.href = '/login.html'; return }
+            if (!res.ok) { this.error = 'Could not load your profile.'; return }
+            this.owner = await res.json()
+          } catch (e) {
+            this.error = 'Network error. Is the server running?'
+          }
+        },
+        cityName(cityId) {
+          const city = this.cities.find(c => c.id === cityId)
+          return city ? city.name : (cityId ? `city #${cityId}` : '—')
+        },
+        initials(name) {
+          return (name || '?').trim().charAt(0).toUpperCase()
+        },
+        pretty(value) {
+          // Enum values arrive as "prefer_not_to_say" / "Same_Gender".
+          return value ? String(value).replace(/_/g, ' ') : '—'
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>

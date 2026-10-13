@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat – CateMate</title>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <app-nav current="messages"></app-nav>
+
+      <v-main>
+        <v-container class="py-6 d-flex flex-column" style="max-width: 760px; height: calc(100vh - 64px);">
+          <!-- Back to the conversation list -->
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-arrow-left"
+            href="/messages.html"
+            class="mb-2 align-self-start px-2"
+          >All messages</v-btn>
+
+          <!-- Conversation header -->
+          <div class="d-flex align-center mb-3">
+            <v-avatar color="pink" class="mr-2">
+              <span class="text-white">{{ initials(otherName) }}</span>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold">{{ otherName }}</div>
+              <div v-if="catName" class="text-caption text-medium-emphasis">about {{ catName }}</div>
+            </div>
+          </div>
+
+          <v-divider></v-divider>
+
+          <!-- Messages thread -->
+          <div ref="thread" class="flex-grow-1 overflow-y-auto py-4 px-1">
+            <v-progress-circular v-if="loading" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
+
+            <div v-else-if="thread.length === 0" class="text-center text-medium-emphasis mt-8">
+              <v-icon icon="mdi-chat-outline" size="48" class="mb-2"></v-icon>
+              <div>No messages yet. Say hello!</div>
+            </div>
+
+            <template v-else>
+              <div
+                v-for="msg in thread"
+                :key="msg.id"
+                class="d-flex mb-2"
+                :class="msg.sender_id === me ? 'justify-end' : 'justify-start'"
+              >
+                <v-sheet
+                  :color="msg.sender_id === me ? 'primary' : 'grey-lighten-3'"
+                  :class="msg.sender_id === me ? 'text-white' : ''"
+                  rounded="lg"
+                  class="px-4 py-2"
+                  style="max-width: 75%;"
+                >
+                  <div style="white-space: pre-wrap; word-break: break-word;">{{ msg.content }}</div>
+                  <div
+                    class="text-caption mt-1"
+                    :class="msg.sender_id === me ? 'text-white' : 'text-medium-emphasis'"
+                    style="opacity: 0.8;"
+                  >{{ formatTime(msg.created_at) }}</div>
+                </v-sheet>
+              </div>
+            </template>
+          </div>
+
+          <!-- Composer -->
+          <v-divider></v-divider>
+          <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-2">{{ error }}</v-alert>
+          <div class="d-flex align-end pt-3">
+            <v-textarea
+              v-model="draft"
+              placeholder="Type a message…"
+              variant="outlined"
+              rows="1"
+              auto-grow
+              max-rows="5"
+              hide-details
+              density="comfortable"
+              class="mr-2"
+              @keydown.enter.exact.prevent="send"
+            ></v-textarea>
+            <v-btn
+              icon="mdi-send"
+              color="primary"
+              :loading="sending"
+              :disabled="!draft.trim()"
+              @click="send"
+            ></v-btn>
+          </div>
+        </v-container>
+      </v-main>
+
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+        {{ snackbar.text }}
+      </v-snackbar>
+    </v-app>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="/shared.js"></script>
+  <script>
+    const { createApp } = Vue
+    const vuetify = cmVuetify()
+
+    createApp({
+      data() {
+        const params = new URLSearchParams(window.location.search)
+        return {
+          me: null,
+          otherId: parseInt(params.get('user')),
+          otherName: '',
+          // Optional cat context carried over from Browse/Liked.
+          catId: params.get('cat') ? parseInt(params.get('cat')) : null,
+          catName: params.get('catName') || '',
+          messages: [],
+          draft: '',
+          loading: true,
+          sending: false,
+          error: '',
+          snackbar: { show: false, text: '', color: 'success' },
+        }
+      },
+      computed: {
+        // Only the messages exchanged with this owner, oldest first.
+        thread() {
+          return this.messages
+            .filter(m =>
+              (m.sender_id === this.me && m.recipient_id === this.otherId) ||
+              (m.sender_id === this.otherId && m.recipient_id === this.me)
+            )
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        },
+      },
+      async mounted() {
+        const token = localStorage.getItem('cm_token')
+        if (!token) { window.location.href = '/login.html'; return }
+        this.me = this.decodeOwnerId(token)
+        if (!this.otherId || this.otherId === this.me) { window.location.href = '/messages.html'; return }
+        await Promise.all([this.fetchMessages(), this.fetchOwner()])
+        this.loading = false
+        this.scrollToBottom()
+      },
+      methods: {
+        authHeader() {
+          return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        decodeOwnerId(token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]))
+            return parseInt(payload.sub)
+          } catch (e) { return null }
+        },
+        initials(name) {
+          return (name || '?').trim().charAt(0).toUpperCase()
+        },
+        formatTime(iso) {
+          const d = new Date(iso)
+          return isNaN(d) ? '' : d.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+        },
+        scrollToBottom() {
+          this.$nextTick(() => {
+            const el = this.$refs.thread
+            if (el) el.scrollTop = el.scrollHeight
+          })
+        },
+        async fetchMessages() {
+          const res = await fetch('/messages/', { headers: this.authHeader() })
+          if (res.status === 401) { window.location.href = '/login.html'; return }
+          this.messages = await res.json()
+        },
+        async fetchOwner() {
+          const res = await fetch('/owners/')
+          if (!res.ok) return
+          const owners = await res.json()
+          const owner = owners.find(o => o.id === this.otherId)
+          this.otherName = owner ? owner.name : `owner #${this.otherId}`
+        },
+        async send() {
+          const content = this.draft.trim()
+          if (!content) return
+          this.error = ''
+          this.sending = true
+          try {
+            // Carry the cat context on the first message, then on whichever cat
+            // the existing thread is already about.
+            const lastCat = this.thread.length ? this.thread[this.thread.length - 1].cat_id : null
+            const res = await fetch('/messages/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+              body: JSON.stringify({
+                recipient_id: this.otherId,
+                cat_id: this.catId || lastCat,
+                content,
+              }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) { this.error = data.detail || 'Failed to send message'; return }
+            this.messages.push(data)
+            this.draft = ''
+            this.scrollToBottom()
+          } catch (e) {
+            this.error = 'Network error'
+          } finally {
+            this.sending = false
+          }
+        },
+      },
+    }).use(vuetify).component('app-nav', CmNav).mount('#app')
+  </script>
+</body>
+</html>
