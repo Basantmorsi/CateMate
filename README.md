@@ -145,6 +145,22 @@ The API will be available at `http://127.0.0.1:8000` and the interactive docs at
 POST /seed/breed
 ```
 
+### Schema changes
+
+The app creates tables with `SQLModel.metadata.create_all`, which does **not** add new columns to an existing `catemate.db`. There is no migration tool yet, so apply schema changes by hand (or delete `catemate.db` and reseed).
+
+**2026-10-20 — `cat.created_at`** (used to order the Liked Cats page, newest cat first)
+
+1. Stop the server: `--reload` restarts as soon as the model changes, and cat queries fail until the column exists.
+2. Back up `catemate.db` to a location outside the repo.
+3. Check `PRAGMA table_info(cat);` — skip step 4 if `created_at` is already there.
+4. Run (existing cats get the migration time as their date):
+   ```sql
+   ALTER TABLE cat ADD COLUMN created_at DATETIME NOT NULL
+     DEFAULT '2026-10-20 11:01:09.046304';
+   ```
+5. Verify `PRAGMA table_info(cat);` shows `created_at` with `notnull = 1` and the cat count is unchanged.
+
 ---
 
 ## API overview

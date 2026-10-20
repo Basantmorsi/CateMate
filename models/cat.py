@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 from enum import Enum
 
@@ -15,5 +16,7 @@ class Cat(SQLModel, table= True):
     gender: CatGender
     color: str
     notes: str | None = Field(default=None)
+    # When the cat was added to CateMate; set automatically, never by clients.
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
 
 

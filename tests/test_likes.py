@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 from fastapi.testclient import TestClient
 
 
@@ -109,3 +110,46 @@ def test_like_requires_auth(client: TestClient):
 
 def test_get_likes_requires_auth(client: TestClient):
     assert client.get("/likes/").status_code == 401
+
+
+def test_liked_list_newest_cat_first(client: TestClient, make_owner, token_for, make_breed, make_cat, session):
+    owner = make_owner()
+    other = make_owner()
+    breed = make_breed()
+    base = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    older = make_cat(owner_id=other.id, breed_id=breed.id, name="Older")
+    newer = make_cat(owner_id=other.id, breed_id=breed.id, name="Newer")
+    older.created_at = base
+    newer.created_at = base + timedelta(hours=1)
+    session.add(older)
+    session.add(newer)
+    session.commit()
+    token = token_for(owner.id)
+
+    # Like the newer cat first: the order must follow when the cat was added, not when it was liked.
+    client.post(f"/likes/{newer.id}", headers=_auth(token))
+    client.post(f"/likes/{older.id}", headers=_auth(token))
+
+    liked = client.get("/likes/", headers=_auth(token)).json()
+    assert [c["name"] for c in liked] == ["Newer", "Older"]
+
+
+def test_liked_list_tie_breaks_by_id(client: TestClient, make_owner, token_for, make_breed, make_cat, session):
+    owner = make_owner()
+    other = make_owner()
+    breed = make_breed()
+    same = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    first = make_cat(owner_id=other.id, breed_id=breed.id, name="First")
+    second = make_cat(owner_id=other.id, breed_id=breed.id, name="Second")
+    first.created_at = same
+    second.created_at = same
+    session.add(first)
+    session.add(second)
+    session.commit()
+    token = token_for(owner.id)
+
+    client.post(f"/likes/{first.id}", headers=_auth(token))
+    client.post(f"/likes/{second.id}", headers=_auth(token))
+
+    liked = client.get("/likes/", headers=_auth(token)).json()
+    assert [c["name"] for c in liked] == ["Second", "First"]

@@ -11,8 +11,13 @@ router = APIRouter(prefix="/likes", tags=["Likes"])
 
 @router.get("/", response_model=list[CatRead], status_code=status.HTTP_200_OK)
 def get_liked_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
+    # Newest cats first, by when the cat was added (not when it was liked).
+    # Cat.id breaks ties: migrated and seeded cats share one created_at.
     cats = session.exec(
-        select(Cat).join(Like, Like.cat_id == Cat.id).where(Like.owner_id == owner_id)
+        select(Cat)
+        .join(Like, Like.cat_id == Cat.id)
+        .where(Like.owner_id == owner_id)
+        .order_by(Cat.created_at.desc(), Cat.id.desc())
     ).all()
     return cats
 
