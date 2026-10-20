@@ -81,6 +81,7 @@
                 </v-card-text>
                 <v-card-actions>
                   <v-btn
+                    v-if="cat.owner_id !== myId"
                     :icon="likedIds.has(cat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
                     :color="likedIds.has(cat.id) ? 'pink' : 'grey'"
                     variant="text"
@@ -144,6 +145,7 @@
       data() {
         return {
           isLoggedIn: !!localStorage.getItem('cm_token'),
+          myId: null,
           cities: [],
           breeds: [],
           cats: [],
@@ -160,6 +162,7 @@
         }
       },
       async mounted() {
+        this.myId = this.currentOwnerId()
         const [citiesRes, breedsRes] = await Promise.all([
           fetch('/cities/'),
           fetch('/breeds/'),
@@ -174,6 +177,15 @@
       methods: {
         authHeader() {
           return { Authorization: `Bearer ${localStorage.getItem('cm_token')}` }
+        },
+        currentOwnerId() {
+          // Decode the owner id from the JWT so we can hide the like button on
+          // the current user's own cats. Same approach as messages.html.
+          const token = localStorage.getItem('cm_token')
+          if (!token) return null
+          try {
+            return parseInt(JSON.parse(atob(token.split('.')[1])).sub)
+          } catch (e) { return null }
         },
         notify(text, color = 'success') {
           this.snackbar = { show: true, text, color }

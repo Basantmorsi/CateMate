@@ -23,6 +23,11 @@ def like_cat(cat_id: int, session: SessionDep, owner_id: int = Depends(get_curre
     if not cat:
         raise HTTPException(status_code=404, detail="Cat not found")
 
+    # You can't shortlist your own cat for mating. get_current_user returns the
+    # JWT "sub" as a string, so convert before comparing to cat.owner_id (int).
+    if cat.owner_id == int(owner_id):
+        raise HTTPException(status_code=403, detail="You cannot like your own cat")
+
     existing = session.exec(
         select(Like).where(Like.owner_id == owner_id).where(Like.cat_id == cat_id)
     ).first()
