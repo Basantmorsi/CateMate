@@ -1,5 +1,5 @@
 import cloudinary.uploader
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
+from fastapi import APIRouter, HTTPException, status, UploadFile
 from fastapi.params import File
 from fastapi.responses import RedirectResponse
 from sqlmodel import select, Session
@@ -8,7 +8,7 @@ from CateMate.models.owner import Owner
 from CateMate.models.catphoto import CatPhoto
 from CateMate.schemas.cat import CatCreate, CatRead, CatUpdate
 from CateMate.schemas.catphoto import CatPhotoRead
-from CateMate.utils.auth import get_current_user
+from CateMate.utils.auth import CurrentOwnerId
 from CateMate.db import SessionDep
 from CateMate.utils.cloudinary import upload_image
 
@@ -22,13 +22,13 @@ def select_cat(cat_id: int, session:Session):
 
 def check_cat_and_owner(cat_id: int, owner_id: int, session: Session):
     cat = select_cat(cat_id, session)
-    if int(cat.owner_id) != int(owner_id):
+    if cat.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="Not your cat")
     return cat
 
 
 @router.get("/", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
-def get_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
+def get_cats(session: SessionDep, owner_id: CurrentOwnerId):
     cats = session.exec(select(Cat).where(Cat.owner_id==owner_id)).all()
     return cats
 
@@ -50,13 +50,13 @@ def get_all_cats(session: SessionDep):
     return cats
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
-def get_cat(session: SessionDep, cat_id: int, owner_id: int = Depends(get_current_user)):
+def get_cat(session: SessionDep, cat_id: int, owner_id: CurrentOwnerId):
     cat = check_cat_and_owner(cat_id, owner_id, session)
     cat = session.exec(select(Cat).where(Cat.id == cat_id).where(Cat.owner_id==owner_id)).first()
     return cat
 
 @router.patch("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
-def update_cat(cat_id:int, updated_cat:CatUpdate, session: SessionDep, owner_id: int = Depends(get_current_user)):
+def update_cat(cat_id:int, updated_cat:CatUpdate, session: SessionDep, owner_id: CurrentOwnerId):
     cat = check_cat_and_owner(cat_id, owner_id, session)
     cat_data = updated_cat.model_dump(exclude_unset=True)
     for key, value in cat_data.items():
@@ -74,7 +74,7 @@ def update_cat(cat_id:int, updated_cat:CatUpdate, session: SessionDep, owner_id:
 
 
 @router.post("/", response_model= CatRead ,status_code=status.HTTP_201_CREATED)
-def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(get_current_user)):
+def create_cate(session: SessionDep, cat_data:CatCreate, owner_id: CurrentOwnerId):
     try:
         new_cat=Cat(
             owner_id = owner_id,
@@ -95,7 +95,7 @@ def create_cate(session: SessionDep, cat_data:CatCreate, owner_id:int = Depends(
 
 
 @router.post("/{cat_id}/images", status_code=status.HTTP_201_CREATED)
-def upload_cat_image(cat_id:int, session: SessionDep, owner_id:int = Depends(get_current_user), image: UploadFile = File(...)):
+def upload_cat_image(cat_id:int, session: SessionDep, owner_id: CurrentOwnerId, image: UploadFile = File(...)):
     cat = check_cat_and_owner(cat_id, owner_id, session)
     result = upload_image(image.file, folder=f"catemate/cats/{cat_id}")
     cat_photo = CatPhoto(
@@ -122,7 +122,7 @@ def get_cat_images(cat_id:int, session: SessionDep):
     return images
 
 @router.get("/{cat_id}/images/{image_id}")
-def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
+def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id: CurrentOwnerId):
     cat = check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id ).where(CatPhoto.id == image_id)).first()
     if not image:
@@ -130,7 +130,7 @@ def get_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depen
     return RedirectResponse(image.file_path)
 
 @router.delete("/{cat_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_cat_image(cat_id:int, image_id:int, session:SessionDep, owner_id:int = Depends(get_current_user)):
+def delete_cat_image(cat_id:int, image_id:int, session:SessionDep, owner_id: CurrentOwnerId):
     cat = check_cat_and_owner(cat_id, owner_id, session)
     image = session.exec(select(CatPhoto).where(CatPhoto.cat_id == cat_id).where(CatPhoto.id == image_id)).first()
     if not image:

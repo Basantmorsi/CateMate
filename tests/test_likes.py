@@ -153,3 +153,9 @@ def test_liked_list_tie_breaks_by_id(client: TestClient, make_owner, token_for, 
 
     liked = client.get("/likes/", headers=_auth(token)).json()
     assert [c["name"] for c in liked] == ["Second", "First"]
+
+
+def test_non_numeric_sub_401_on_likes(client: TestClient):
+    from CateMate.utils.auth import create_access_token
+    token = create_access_token(data={"sub": "abc"})
+    assert client.get("/likes/", headers=_auth(token)).status_code == 401

@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 from CateMate.models.like import Like
 from CateMate.models.cat import Cat
 from CateMate.schemas.cat import CatRead
-from CateMate.utils.auth import get_current_user
+from CateMate.utils.auth import CurrentOwnerId
 from CateMate.db import SessionDep
 
 router = APIRouter(prefix="/likes", tags=["Likes"])
 
 
 @router.get("/", response_model=list[CatRead], status_code=status.HTTP_200_OK)
-def get_liked_cats(session: SessionDep, owner_id: int = Depends(get_current_user)):
+def get_liked_cats(session: SessionDep, owner_id: CurrentOwnerId):
     # Newest cats first, by when the cat was added (not when it was liked).
     # Cat.id breaks ties: migrated and seeded cats share one created_at.
     cats = session.exec(
@@ -23,14 +23,13 @@ def get_liked_cats(session: SessionDep, owner_id: int = Depends(get_current_user
 
 
 @router.post("/{cat_id}", status_code=status.HTTP_201_CREATED)
-def like_cat(cat_id: int, session: SessionDep, owner_id: int = Depends(get_current_user)):
+def like_cat(cat_id: int, session: SessionDep, owner_id: CurrentOwnerId):
     cat = session.get(Cat, cat_id)
     if not cat:
         raise HTTPException(status_code=404, detail="Cat not found")
 
-    # You can't shortlist your own cat for mating. get_current_user returns the
-    # JWT "sub" as a string, so convert before comparing to cat.owner_id (int).
-    if cat.owner_id == int(owner_id):
+    # You can't shortlist your own cat for mating.
+    if cat.owner_id == owner_id:
         raise HTTPException(status_code=403, detail="You cannot like your own cat")
 
     existing = session.exec(
@@ -51,7 +50,7 @@ def like_cat(cat_id: int, session: SessionDep, owner_id: int = Depends(get_curre
 
 
 @router.delete("/{cat_id}", status_code=status.HTTP_204_NO_CONTENT)
-def unlike_cat(cat_id: int, session: SessionDep, owner_id: int = Depends(get_current_user)):
+def unlike_cat(cat_id: int, session: SessionDep, owner_id: CurrentOwnerId):
     like = session.exec(
         select(Like).where(Like.owner_id == owner_id).where(Like.cat_id == cat_id)
     ).first()

@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select, or_
 from CateMate.models.message import Message
 from CateMate.models.owner import Owner, AllowedGender
 from CateMate.schemas.message import MessageCreate, MessageRead
-from CateMate.utils.auth import get_current_user
+from CateMate.utils.auth import CurrentOwner, CurrentOwnerId
 from CateMate.db import SessionDep
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
 @router.get("/", response_model=list[MessageRead], status_code=status.HTTP_200_OK)
-def get_messages(session: SessionDep, owner_id: int = Depends(get_current_user)):
+def get_messages(session: SessionDep, owner_id: CurrentOwnerId):
     # Every message the current user is part of, newest first.
     messages = session.exec(
         select(Message)
@@ -21,12 +21,10 @@ def get_messages(session: SessionDep, owner_id: int = Depends(get_current_user))
 
 
 @router.post("/", response_model=MessageRead, status_code=status.HTTP_201_CREATED)
-def send_message(data: MessageCreate, session: SessionDep, owner_id: int = Depends(get_current_user)):
-    owner_id = int(owner_id)
-    if data.recipient_id == owner_id:
+def send_message(data: MessageCreate, session: SessionDep, sender: CurrentOwner):
+    if data.recipient_id == sender.id:
         raise HTTPException(status_code=400, detail="You cannot message yourself")
 
-    sender = session.get(Owner, owner_id)
     recipient = session.get(Owner, data.recipient_id)
     if not recipient:
         raise HTTPException(status_code=404, detail="Recipient not found")
@@ -39,7 +37,7 @@ def send_message(data: MessageCreate, session: SessionDep, owner_id: int = Depen
         )
 
     message = Message(
-        sender_id=owner_id,
+        sender_id=sender.id,
         recipient_id=data.recipient_id,
         cat_id=data.cat_id,
         content=data.content,

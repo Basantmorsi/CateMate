@@ -109,3 +109,24 @@ def test_get_my_profile_returns_own_record(client: TestClient, make_owner, token
     assert response_b.status_code == 200
     assert response_b.json()["id"] == owner_b.id
     assert response_b.json()["email"] == "b@test.com"
+
+
+def test_token_with_non_numeric_sub_401(client: TestClient):
+    from CateMate.utils.auth import create_access_token
+    token = create_access_token(data={"sub": "abc"})
+    assert client.get("/owners/me", headers=_auth(token)).status_code == 401
+
+
+def test_token_without_sub_401(client: TestClient):
+    from CateMate.utils.auth import create_access_token
+    token = create_access_token(data={})
+    assert client.get("/owners/me", headers=_auth(token)).status_code == 401
+
+
+def test_deleted_owner_token_401(client: TestClient, session, make_owner, token_for):
+    # A still-valid token for an owner who no longer exists is not a real login.
+    owner = make_owner()
+    token = token_for(owner.id)
+    session.delete(owner)
+    session.commit()
+    assert client.get("/owners/me", headers=_auth(token)).status_code == 401

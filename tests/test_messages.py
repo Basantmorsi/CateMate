@@ -131,3 +131,22 @@ def test_send_message_requires_auth(client: TestClient):
 
 def test_get_messages_requires_auth(client: TestClient):
     assert client.get("/messages/").status_code == 401
+
+
+def test_deleted_owner_cannot_send_401(client: TestClient, make_owner, token_for, session):
+    from sqlmodel import select
+    from CateMate.models.message import Message
+
+    ghost = make_owner()
+    everyone = make_owner()
+    same_gender_only = make_owner(allow_message_from="Same_Gender")
+    token = token_for(ghost.id)
+    session.delete(ghost)
+    session.commit()
+
+    for recipient in (everyone, same_gender_only):
+        response = client.post(
+            "/messages/", json={"recipient_id": recipient.id, "content": "hi"}, headers=_auth(token)
+        )
+        assert response.status_code == 401
+    assert session.exec(select(Message)).all() == []
