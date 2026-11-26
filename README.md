@@ -1,20 +1,9 @@
 # CateMate 🐱
 
-CateMate is a platform that helps cat owners find suitable mates for their cats in a simple, 
-organized, and secure way. Instead of relying on social media posts or word-of-mouth recommendations, 
-owners can create detailed profiles for their cats, browse compatible cats in their area, 
-and connect directly with other owners—all in one place.
-
-Security and community trust are core values of CateMate. To join the platform, e
-very user must create a personal owner profile in addition to their cat's profile. 
-Owners can specify their location and choose the gender of users 
-from whom they wish to receive messages. 
-These privacy controls help reduce unwanted contact and harassment while creating a safer and more comfortable experience for everyone in the community.
-
-By combining cat matchmaking with user-focused safety features, 
-CateMate provides a dedicated space where owners can confidently connect 
-and arrange breeding opportunities for their cats.
-
+ CateMate is a web app where cat owners make profiles for themselves and their cats, 
+ browse cats nearby that would be good mates, and message the owners directly. 
+ It's for cat owners looking for a breeding match who want a safer, 
+ more organized option than social media, with privacy controls such as choosing which users can message them.
 ---
 
 ## The problem
@@ -119,6 +108,9 @@ cd CateMate
 uv sync
 ```
 
+- No Node or npm. The frontend is plain HTML/JS in frontend/, served by FastAPI at http://127.0.0.1:8000.
+- It loads Vue 3 and Vuetify 3 from CDNs, so you need an internet connection or the pages won't render.
+
 ### Environment variables
 
 Create a `.env` file in the project root:
@@ -144,10 +136,12 @@ The API will be available at `http://127.0.0.1:8000` and the interactive docs at
 # seed breeds and other initial data
 POST /seed/breed
 ```
+-Demo login: every seeded owner uses the password password123, for example anna@example.com / password123.
 
 ### Schema changes
 
 The app creates tables with `SQLModel.metadata.create_all`, which does **not** add new columns to an existing `catemate.db`. There is no migration tool yet, so apply schema changes by hand (or delete `catemate.db` and reseed).
+
 
 **2026-10-20 — `cat.created_at`** (used to order the Liked Cats page, newest cat first)
 
