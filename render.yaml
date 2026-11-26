@@ -1,0 +1,19 @@
+# Render blueprint for a free test deployment.
+# The code imports itself as `CateMate`, but Render clones the repo into a folder
+# named `src`, so the start command adds a `CateMate` symlink pointing at it.
+# SQLite lives on Render's temporary disk: data resets to the committed
+# catemate.db on every restart or redeploy.
+services:
+  - type: web
+    name: catemate
+    runtime: python
+    plan: free
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: ln -sfn /opt/render/project/src /opt/render/project/CateMate && cd /opt/render/project && src/.venv/bin/uvicorn CateMate.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
