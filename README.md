@@ -4,6 +4,11 @@
  browse cats nearby that would be good mates, and message the owners directly. 
  It's for cat owners looking for a breeding match who want a safer, 
  more organized option than social media, with privacy controls such as choosing which users can message them.
+
+**Live demo:** https://catemate.onrender.com/ (API docs at [/docs](https://catemate.onrender.com/docs))
+Log in with `anna@example.com` / `password123`. This is a free test deployment: the first visit after a
+quiet period can take up to a minute, and data resets to the seeded demo data on every restart.
+
 ---
 
 ## The problem
