@@ -9,3 +9,5 @@ class CityRead(BaseModel):
     id: int
     name: str
     country_id: int
+    latitude: float | None = None
+    longitude: float | None = None

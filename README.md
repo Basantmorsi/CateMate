@@ -160,6 +160,23 @@ The app creates tables with `SQLModel.metadata.create_all`, which does **not** a
    ```
 5. Verify `PRAGMA table_info(cat);` shows `created_at` with `notnull = 1` and the cat count is unchanged.
 
+**2026-11-28 — `city.latitude` / `city.longitude`** (city centre; owners default to it when they don't pick a spot)
+
+1. Stop the server.
+2. Back up `catemate.db` to a location outside the repo.
+3. Check `PRAGMA table_info(city);` — skip step 4 if `latitude` and `longitude` are already there.
+4. Run, then set the centre of every city and copy it to owners that have no coordinates:
+   ```sql
+   ALTER TABLE city ADD COLUMN latitude FLOAT;
+   ALTER TABLE city ADD COLUMN longitude FLOAT;
+   UPDATE city SET latitude = 48.137, longitude = 11.575 WHERE name = 'Munich';  -- repeat per city
+   UPDATE owner SET
+     latitude  = (SELECT latitude  FROM city WHERE city.id = owner.city_id),
+     longitude = (SELECT longitude FROM city WHERE city.id = owner.city_id)
+   WHERE latitude IS NULL;
+   ```
+5. Verify `PRAGMA table_info(city);` shows both columns and `SELECT COUNT(*) FROM owner WHERE latitude IS NULL;` returns 0.
+
 ---
 
 ## API overview
