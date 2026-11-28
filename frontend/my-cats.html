@@ -25,6 +25,11 @@
           <v-row v-else-if="cats.length > 0">
             <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4">
               <v-card rounded="lg" elevation="2" hover style="cursor:pointer" @click="openDetail(cat)">
+                <v-img :src="catCover(cat)" height="200" cover>
+                  <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" class="ma-2" color="rgba(0,0,0,0.6)">
+                    <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
+                  </v-chip>
+                </v-img>
                 <v-card-title class="d-flex align-center">
                   <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
                   {{ cat.name }}
@@ -39,7 +44,8 @@
                   <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
                 </v-card-text>
                 <v-card-actions>
-                  <v-btn variant="text" color="primary" prepend-icon="mdi-image-multiple">View photos</v-btn>
+                  <v-btn v-if="hasPhotos(cat)" variant="text" color="primary" prepend-icon="mdi-image-multiple">View photos</v-btn>
+                  <v-btn v-else variant="text" color="primary" prepend-icon="mdi-camera-plus">Add photos</v-btn>
                 </v-card-actions>
               </v-card>
             </v-col>
@@ -115,8 +121,8 @@
 
             <v-progress-circular v-if="loadingPhotos" indeterminate color="primary"></v-progress-circular>
 
-            <v-row v-else-if="photos.length > 0">
-              <v-col v-for="photo in photos" :key="photo.id" cols="6" sm="4">
+            <v-row v-else-if="dialogPhotos.length > 0">
+              <v-col v-for="photo in dialogPhotos" :key="photo.id" cols="6" sm="4">
                 <v-card variant="outlined">
                   <v-img :src="photo.file_path" aspect-ratio="1" cover></v-img>
                   <v-card-actions class="justify-end pa-1">
@@ -162,6 +168,7 @@
       data() {
         return {
           cats: [],
+          photos: {},
           breeds: [],
           loading: true,
           dialog: false,
@@ -170,7 +177,7 @@
           newCat: { name: '', age: null, breed_id: null, gender: 'MALE', color: '', notes: '' },
           detailDialog: false,
           selectedCat: null,
-          photos: [],
+          dialogPhotos: [],
           loadingPhotos: false,
           photoError: '',
           uploadFile: null,
@@ -182,6 +189,7 @@
         if (!token) { window.location.href = '/login.html'; return }
         await Promise.all([this.fetchCats(), this.fetchBreeds()])
         this.loading = false
+        this.fetchPhotos()
       },
       methods: {
         authHeader() {
@@ -191,6 +199,26 @@
           const res = await fetch('/cats/', { headers: this.authHeader() })
           if (res.status === 401) { window.location.href = '/login.html'; return }
           this.cats = await res.json()
+        },
+        async fetchPhotos() {
+          // Load each cat's photos in parallel; the images endpoint is public.
+          const entries = await Promise.all(
+            this.cats.map(async (cat) => {
+              try {
+                const res = await fetch(`/cats/${cat.id}/images`)
+                return [cat.id, res.ok ? await res.json() : []]
+              } catch (e) {
+                return [cat.id, []]
+              }
+            })
+          )
+          this.photos = Object.fromEntries(entries)
+        },
+        hasPhotos(cat) {
+          return !!(this.photos[cat.id] && this.photos[cat.id].length)
+        },
+        catCover(cat) {
+          return this.hasPhotos(cat) ? this.photos[cat.id][0].file_path : '/default-cat.svg'
         },
         async fetchBreeds() {
           const res = await fetch('/breeds/')
@@ -213,6 +241,7 @@
             const data = await res.json()
             if (!res.ok) { this.formError = data.detail || 'Failed to add cat'; return }
             this.cats.push(data)
+            this.photos = { ...this.photos, [data.id]: [] }
             this.dialog = false
           } catch (e) {
             this.formError = 'Network error'
@@ -222,18 +251,19 @@
         },
         async openDetail(cat) {
           this.selectedCat = cat
-          this.photos = []
+          this.dialogPhotos = []
           this.photoError = ''
           this.uploadFile = null
           this.detailDialog = true
-          await this.fetchPhotos(cat.id)
+          await this.fetchCatPhotos(cat.id)
         },
-        async fetchPhotos(catId) {
+        async fetchCatPhotos(catId) {
           this.loadingPhotos = true
           try {
             const res = await fetch(`/cats/${catId}/images`, { headers: this.authHeader() })
             if (res.status === 401) { window.location.href = '/login.html'; return }
-            this.photos = await res.json()
+            this.photos = { ...this.photos, [catId]: await res.json() }
+            this.dialogPhotos = this.photos[catId]
           } catch (e) {
             this.photoError = 'Failed to load photos'
           } finally {
@@ -261,7 +291,7 @@
               return
             }
             this.uploadFile = null
-            await this.fetchPhotos(this.selectedCat.id)
+            await this.fetchCatPhotos(this.selectedCat.id)
           } catch (e) {
             this.photoError = 'Network error during upload'
           } finally {
@@ -276,7 +306,7 @@
               headers: this.authHeader(),
             })
             if (!res.ok && res.status !== 204) { this.photoError = 'Failed to delete photo'; return }
-            await this.fetchPhotos(this.selectedCat.id)
+            await this.fetchCatPhotos(this.selectedCat.id)
           } catch (e) {
             this.photoError = 'Network error during delete'
           }

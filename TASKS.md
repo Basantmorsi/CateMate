@@ -29,10 +29,15 @@ Ordered task list derived from the Week 1 worksheet. Each task is full-stack (AP
   *Done when:* no endpoint returns another owner's email/phone/coordinates unless they opted in; tests prove it.
   *Depends on:* T1.
 
-- [ ] **T3. Owner profile & location**
-  Owner can view and edit their own profile (name, bio, messaging preference, contact-sharing choice) and set their location (lat/long, e.g. from browser location or a map pick) at registration and later.
-  *Done when:* a logged-in owner has a "My profile" page, can update it, and has coordinates stored for distance search. Seed owners have coordinates.
-  *Depends on:* T2.
+- [x] **T3. Owner profile & location** — done 2026-11-28
+  Owner can view and edit their own profile (name, gender, age, city, phone, bio, messaging preference) and set an approximate location on a map (Leaflet + OpenStreetMap) at registration and later. Owners who don't pick a spot get their city's centre stored as their coordinates. Also added: change password and a "My cats" list on the profile.
+  *Done:* `PATCH /owners/me`, `POST /owners/me/password`, city latitude/longitude, coordinates rounded to 2 decimals (~1 km), `profile.html` and `register.html` with the map picker, seed owners and the migrated `catemate.db` have coordinates, tests in `tests/test_owners.py`.
+  *Moved to T2:* the contact-sharing choice (opt-in to share phone/email) is not part of this task and is still open.
+  *Depends on:* T2 (built ahead of it by choice).
+
+- [x] **T3.1. Show cat photos on My Cats** — done 2026-11-28
+  Found while testing T3: every card on `my-cats.html` showed "View photos" even with no photos, and an uploaded photo never appeared on the card. Cards now show the first photo as a cover (default cat image when there is none) with a photo-count chip, "View photos" only appears when the cat has photos ("Add photos" otherwise), and the card updates right after an upload or delete. Frontend only, same pattern as `browse.html` and `liked.html`.
+  *Related:* the photo and delete parts of T4 (delete a cat with its photos) are still open.
 
 - [ ] **T4. Complete the cat profile**
   Owner can delete a cat (and its photos); anyone logged in can open a public cat detail page (photos, breed, age, colour, gender, notes, owner's public info and approximate distance). Decide whether cats need an "available for mating" flag so unavailable cats stay out of search.
