@@ -48,6 +48,10 @@ Ordered task list derived from the Week 1 worksheet. Each task is full-stack (AP
 - [x] **T4.1. Edit a cat** — done 2026-11-28
   Each cat card on `my-cats.html` has an Edit button, and the cat's detail dialog has one too. Both open a form (name, age, breed, gender, colour, notes) with Save/Cancel, using the existing `PATCH /cats/{id}`. The card updates right after saving. Frontend only.
 
+- [x] **T4.2. Browse page improvements** — done 2026-11-28
+  Browse got `GET /cats/search`: city, breed, gender, colour (dropdown from `GET /cats/colors`) and an age range all combine, plus a "Hide my cats" switch for logged-in owners. Each cat shows its city and an approximate distance ("about N km away") when the visitor is logged in; the server computes it and never returns coordinates, email or phone. Clicking a card opens a cat detail dialog (photos, details, owner name, city, distance, Like and Message). Order is newest cat first, and your own cats have no "Message owner" button.
+  *Still open for T5:* pick one of my cats and match against opposite-gender cats only, a distance radius filter and ordering by distance. The old `/cats/all`, `/cats/city/{id}` and `/cats/breed/{id}` endpoints are still there but Browse no longer uses them.
+
 - [ ] **T5. Match search (per cat, within a radius)**
   Owner picks one of their cats; results show only opposite-gender cats, never their own, within a chosen distance, with optional breed / colour / age-range filters combined together, ordered by distance. Replaces the separate city/breed filters on `browse.html`.
   *Done when:* an owner can find suitable nearby mates for a specific cat in the browser; tests cover gender rule, own-cat exclusion, radius and each filter.
@@ -90,6 +94,20 @@ Ordered task list derived from the Week 1 worksheet. Each task is full-stack (AP
 - [ ] **T13. Meetup scheduling**
   Inside a conversation, an owner can propose a meetup date/time (and optionally a place); the other owner accepts, declines, or proposes another; both see upcoming meetups.
   *Depends on:* T6.
+
+## Follow-ups found while building (small, can be done any time)
+
+- [ ] **F1. Validate cat input in the API**
+  `POST` and `PATCH /cats` accept an empty name or colour and a negative age (demo cat "Miau" has age -2). Add limits (non-empty name and colour, age 0–40, notes length) in `CatCreate` / `CatUpdate` and tests. Overlaps T1's input validation; do it there if T1 comes first.
+
+- [ ] **F2. Retire the old cat list endpoints**
+  Browse now uses `GET /cats/search`, so `/cats/all`, `/cats/city/{id}` and `/cats/breed/{id}` are unused by the frontend. Remove them with their tests, and update the README endpoint table and the Postman collection (both still list `/cats/city/{id}` and `/cats/breed/{id}`, and neither mentions `/cats/search` or `/cats/colors`).
+
+- [ ] **F3. Share the photo-loading code between pages**
+  `browse.html`, `liked.html` and `my-cats.html` each have their own copy of fetching a cat's photos, `hasPhotos` and `catCover`. Move them into `shared.js` now that there are three copies.
+
+- [ ] **F4. Clean up the demo data**
+  Some seeded or hand-edited records look wrong (cat age -2, an owner in Munich whose saved pin is about 5,400 km away, cat renamed "Miloooooo"). Fix them in the seeds and the local DB, and document how to reseed a fresh database.
 
 ## Backlog (Nice to have — not planned)
 - Support other pet types beyond cats

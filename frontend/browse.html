@@ -16,51 +16,47 @@
         <v-container class="py-8">
           <h1 class="text-h5 font-weight-bold mb-6">Browse Cats</h1>
 
-          <!-- Filters -->
-          <v-row class="mb-6">
-            <v-col cols="12" sm="6">
-              <v-select
-                v-model="selectedCity"
-                label="Filter by city"
-                :items="cities"
-                item-title="name"
-                item-value="id"
-                prepend-inner-icon="mdi-city-variant-outline"
-                variant="outlined"
-                clearable
-                :loading="loadingFilters"
-                @update:model-value="onCityChange"
-              ></v-select>
+          <!-- Filters: all of them combine -->
+          <v-row class="mb-2">
+            <v-col cols="12" sm="6" md="3">
+              <v-select v-model="filters.city_id" label="City" :items="cities" item-title="name" item-value="id"
+                prepend-inner-icon="mdi-city-variant-outline" variant="outlined" density="comfortable" clearable
+                :loading="loadingFilters" @update:model-value="applyFilters"></v-select>
             </v-col>
-            <v-col cols="12" sm="6">
-              <v-select
-                v-model="selectedBreed"
-                label="Filter by breed"
-                :items="breeds"
-                item-title="name"
-                item-value="id"
-                prepend-inner-icon="mdi-paw"
-                variant="outlined"
-                clearable
-                :loading="loadingFilters"
-                @update:model-value="onBreedChange"
-              ></v-select>
+            <v-col cols="12" sm="6" md="3">
+              <v-select v-model="filters.breed_id" label="Breed" :items="breeds" item-title="name" item-value="id"
+                prepend-inner-icon="mdi-paw" variant="outlined" density="comfortable" clearable
+                :loading="loadingFilters" @update:model-value="applyFilters"></v-select>
+            </v-col>
+            <v-col cols="6" sm="3" md="3">
+              <v-select v-model="filters.gender" label="Gender" :items="['MALE', 'FEMALE']" variant="outlined"
+                density="comfortable" clearable @update:model-value="applyFilters"></v-select>
+            </v-col>
+            <v-col cols="6" sm="3" md="3">
+              <v-select v-model="filters.color" label="Colour" :items="colors" variant="outlined"
+                density="comfortable" clearable @update:model-value="applyFilters"></v-select>
             </v-col>
           </v-row>
+          <div class="d-flex align-center flex-wrap ga-4 mb-6">
+            <v-text-field v-model.number="filters.min_age" label="Min age" type="number" min="0" variant="outlined"
+              density="comfortable" hide-details style="max-width:130px" @update:model-value="applyFiltersSoon"></v-text-field>
+            <v-text-field v-model.number="filters.max_age" label="Max age" type="number" min="0" variant="outlined"
+              density="comfortable" hide-details style="max-width:130px" @update:model-value="applyFiltersSoon"></v-text-field>
+            <v-switch v-if="isLoggedIn" v-model="filters.hide_mine" label="Hide my cats" color="primary"
+              density="compact" hide-details @update:model-value="applyFilters"></v-switch>
+            <v-spacer></v-spacer>
+            <v-btn v-if="hasFilters" variant="text" prepend-icon="mdi-filter-remove-outline" @click="clearFilters">Clear filters</v-btn>
+          </div>
+          <v-alert v-if="filterError" type="warning" variant="tonal" class="mb-4">{{ filterError }}</v-alert>
 
           <!-- Results -->
           <v-progress-circular v-if="loadingCats" indeterminate color="primary" class="d-block mx-auto"></v-progress-circular>
 
           <v-row v-else-if="cats.length > 0">
             <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4" class="d-flex">
-              <v-card rounded="lg" elevation="2" class="d-flex flex-column flex-grow-1">
-                <v-img
-                  :src="catCover(cat)"
-                  height="200"
-                  cover
-                  :style="hasPhotos(cat) ? 'cursor:pointer' : ''"
-                  @click="hasPhotos(cat) && openGallery(cat)"
-                >
+              <v-card rounded="lg" elevation="2" hover class="d-flex flex-column flex-grow-1"
+                style="cursor:pointer" @click="openDetail(cat)">
+                <v-img :src="catCover(cat)" height="200" cover>
                   <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" class="ma-2" color="rgba(0,0,0,0.6)">
                     <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
                   </v-chip>
@@ -74,9 +70,13 @@
                   </v-chip>
                 </v-card-title>
                 <v-card-text class="flex-grow-1">
-                  <div><strong>Breed:</strong> {{ breedName(cat.breed_id) }}</div>
+                  <div><strong>Breed:</strong> {{ cat.breed_name }}</div>
                   <div><strong>Age:</strong> {{ cat.age }} year{{ cat.age !== 1 ? 's' : '' }}</div>
                   <div><strong>Color:</strong> {{ cat.color }}</div>
+                  <div class="text-body-2 mt-1">
+                    <v-icon icon="mdi-map-marker-outline" size="small"></v-icon>
+                    {{ cat.city_name }}<span v-if="cat.distance_km !== null"> · {{ distanceText(cat.distance_km) }}</span>
+                  </div>
                   <div v-if="cat.notes" class="mt-2 text-medium-emphasis text-body-2">{{ cat.notes }}</div>
                 </v-card-text>
                 <v-card-actions>
@@ -85,10 +85,10 @@
                     :icon="likedIds.has(cat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
                     :color="likedIds.has(cat.id) ? 'pink' : 'grey'"
                     variant="text"
-                    @click="toggleLike(cat)"
+                    @click.stop="toggleLike(cat)"
                   ></v-btn>
                   <v-spacer></v-spacer>
-                  <v-btn variant="text" color="primary" prepend-icon="mdi-email-outline" @click="openMessage(cat)">
+                  <v-btn v-if="cat.owner_id !== myId" variant="text" color="primary" prepend-icon="mdi-email-outline" @click.stop="openMessage(cat)">
                     Message owner
                   </v-btn>
                 </v-card-actions>
@@ -100,31 +100,49 @@
             v-else
             icon="mdi-cat"
             title="No cats found"
-            :text="(selectedCity || selectedBreed) ? 'No cats match the selected filter.' : 'No cats have been added yet.'"
+            :text="hasFilters ? 'No cats match the selected filters.' : 'No cats have been added yet.'"
           ></v-empty-state>
         </v-container>
       </v-main>
 
-      <!-- Photo gallery dialog -->
-      <v-dialog v-model="galleryDialog" max-width="700">
-        <v-card rounded="lg" v-if="galleryCat">
+      <!-- Cat detail dialog -->
+      <v-dialog v-model="detailDialog" max-width="700">
+        <v-card rounded="lg" v-if="detailCat">
           <v-card-title class="d-flex align-center pt-5 px-6">
             <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
-            {{ galleryCat.name }}'s photos
+            {{ detailCat.name }}
+            <v-chip :color="detailCat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal" class="ml-3">
+              {{ detailCat.gender }}
+            </v-chip>
             <v-spacer></v-spacer>
-            <v-btn icon="mdi-close" variant="text" @click="galleryDialog = false"></v-btn>
+            <v-btn icon="mdi-close" variant="text" @click="detailDialog = false"></v-btn>
           </v-card-title>
-          <v-card-text class="px-6 pb-6">
-            <v-carousel v-if="galleryPhotos.length" height="450" hide-delimiter-background show-arrows="hover">
-              <v-carousel-item
-                v-for="photo in galleryPhotos"
-                :key="photo.id"
-                :src="photo.file_path"
-                cover
-              ></v-carousel-item>
+          <v-card-text class="px-6 pb-2">
+            <v-carousel v-if="detailPhotos.length" height="380" hide-delimiter-background show-arrows="hover" class="mb-4">
+              <v-carousel-item v-for="photo in detailPhotos" :key="photo.id" :src="photo.file_path" cover></v-carousel-item>
             </v-carousel>
-            <p v-else class="text-medium-emphasis">No photos yet.</p>
+            <v-img v-else src="/default-cat.svg" height="220" class="mb-4"></v-img>
+            <div><strong>Breed:</strong> {{ detailCat.breed_name }}</div>
+            <div><strong>Age:</strong> {{ detailCat.age }} year{{ detailCat.age !== 1 ? 's' : '' }}</div>
+            <div><strong>Color:</strong> {{ detailCat.color }}</div>
+            <div v-if="detailCat.notes" class="mt-2 text-medium-emphasis">{{ detailCat.notes }}</div>
+            <v-divider class="my-4"></v-divider>
+            <div><strong>Owner:</strong> {{ detailCat.owner_name }}</div>
+            <div>
+              <strong>Location:</strong> {{ detailCat.city_name }}<span v-if="detailCat.distance_km !== null"> · {{ distanceText(detailCat.distance_km) }}</span>
+            </div>
           </v-card-text>
+          <v-card-actions v-if="detailCat.owner_id !== myId" class="px-6 pb-5">
+            <v-btn
+              :prepend-icon="likedIds.has(detailCat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
+              :color="likedIds.has(detailCat.id) ? 'pink' : 'grey'"
+              variant="text"
+              @click="toggleLike(detailCat)"
+            >{{ likedIds.has(detailCat.id) ? 'Liked' : 'Like' }}</v-btn>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" variant="flat" prepend-icon="mdi-email-outline" @click="openMessage(detailCat)">Message owner</v-btn>
+          </v-card-actions>
+          <v-card-actions v-else class="px-6 pb-5"><v-spacer></v-spacer><span class="text-medium-emphasis text-body-2">This is your cat.</span></v-card-actions>
         </v-card>
       </v-dialog>
 
@@ -142,6 +160,14 @@
     const vuetify = cmVuetify()
 
     createApp({
+      computed: {
+        hasFilters() {
+          return Object.values(this.filters).some(v => v !== null && v !== '' && v !== false)
+        },
+        detailPhotos() {
+          return this.detailCat ? (this.photos[this.detailCat.id] || []) : []
+        },
+      },
       data() {
         return {
           isLoggedIn: !!localStorage.getItem('cm_token'),
@@ -150,29 +176,32 @@
           breeds: [],
           cats: [],
           photos: {},
-          selectedCity: null,
-          selectedBreed: null,
+          colors: [],
+          filters: { city_id: null, breed_id: null, gender: null, color: null, min_age: null, max_age: null, hide_mine: false },
+          filterError: '',
+          filterTimer: null,
           loadingFilters: true,
           loadingCats: false,
           likedIds: new Set(),
-          galleryDialog: false,
-          galleryCat: null,
-          galleryPhotos: [],
+          detailDialog: false,
+          detailCat: null,
           snackbar: { show: false, text: '', color: 'success' },
         }
       },
       async mounted() {
         this.myId = this.currentOwnerId()
-        const [citiesRes, breedsRes] = await Promise.all([
+        const [citiesRes, breedsRes, colorsRes] = await Promise.all([
           fetch('/cities/'),
           fetch('/breeds/'),
+          fetch('/cats/colors'),
         ])
         this.cities = await citiesRes.json()
         this.breeds = await breedsRes.json()
+        this.colors = await colorsRes.json()
         this.loadingFilters = false
         if (this.isLoggedIn) await this.fetchLiked()
         // Show every cat by default; filters narrow it down.
-        await this.fetchCats('/cats/all')
+        await this.fetchCats()
       },
       methods: {
         authHeader() {
@@ -211,25 +240,55 @@
           this.likedIds = next
         },
         openMessage(cat) {
+          if (cat.owner_id === this.myId) return
           if (!this.isLoggedIn) { window.location.href = '/login.html'; return }
           // Open the dedicated chat thread with this cat's owner.
           const params = new URLSearchParams({ user: cat.owner_id, cat: cat.id, catName: cat.name })
           window.location.href = `/chat.html?${params}`
         },
-        async onCityChange(cityId) {
-          this.selectedBreed = null
-          if (!cityId) { await this.fetchCats('/cats/all'); return }
-          await this.fetchCats(`/cats/city/${cityId}`)
+        applyFilters() {
+          return this.fetchCats()
         },
-        async onBreedChange(breedId) {
-          this.selectedCity = null
-          if (!breedId) { await this.fetchCats('/cats/all'); return }
-          await this.fetchCats(`/cats/breed/${breedId}`)
+        applyFiltersSoon() {
+          // The age boxes change on every keystroke; wait until typing pauses.
+          clearTimeout(this.filterTimer)
+          this.filterTimer = setTimeout(() => this.fetchCats(), 400)
         },
-        async fetchCats(url) {
+        clearFilters() {
+          this.filters = { city_id: null, breed_id: null, gender: null, color: null, min_age: null, max_age: null, hide_mine: false }
+          return this.fetchCats()
+        },
+        searchUrl() {
+          const params = new URLSearchParams()
+          for (const [key, value] of Object.entries(this.filters)) {
+            if (value === null || value === '' || value === false) continue
+            params.set(key, value)
+          }
+          const query = params.toString()
+          return query ? `/cats/search?${query}` : '/cats/search'
+        },
+        distanceText(km) {
+          return km < 1 ? 'less than 1 km away' : `about ${km} km away`
+        },
+        async fetchCats() {
           this.loadingCats = true
+          this.filterError = ''
           try {
-            const res = await fetch(url)
+            // The token (if any) lets the server add the distance to each cat.
+            const headers = this.isLoggedIn ? this.authHeader() : {}
+            const res = await fetch(this.searchUrl(), { headers })
+            if (res.status === 401) {
+              localStorage.removeItem('cm_token')
+              this.isLoggedIn = false
+              this.myId = null
+              return this.fetchCats()
+            }
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}))
+              this.filterError = typeof data.detail === 'string' ? data.detail : 'Those filters are not valid.'
+              this.cats = []
+              return
+            }
             this.cats = await res.json()
             await this.fetchPhotos()
           } finally {
@@ -250,20 +309,15 @@
           )
           this.photos = Object.fromEntries(entries)
         },
-        breedName(breedId) {
-          const breed = this.breeds.find(b => b.id === breedId)
-          return breed ? breed.name : '—'
-        },
         hasPhotos(cat) {
           return !!(this.photos[cat.id] && this.photos[cat.id].length)
         },
         catCover(cat) {
           return this.hasPhotos(cat) ? this.photos[cat.id][0].file_path : '/default-cat.svg'
         },
-        openGallery(cat) {
-          this.galleryCat = cat
-          this.galleryPhotos = this.photos[cat.id] || []
-          this.galleryDialog = true
+        openDetail(cat) {
+          this.detailCat = cat
+          this.detailDialog = true
         },
       },
     }).use(vuetify).component('app-nav', CmNav).mount('#app')
