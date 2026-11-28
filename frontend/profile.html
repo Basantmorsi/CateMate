@@ -6,6 +6,7 @@
   <title>My Profile – CateMate</title>
   <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
 </head>
 <body>
   <div id="app">
@@ -36,7 +37,35 @@
 
               <v-divider></v-divider>
 
-              <v-list density="comfortable" class="py-2">
+              <v-card-text v-if="editing" class="px-6">
+                <v-alert v-if="saveError" type="error" variant="tonal" class="mb-4">{{ saveError }}</v-alert>
+                <v-text-field v-model="form.name" label="Full name" variant="outlined" class="mb-3" :counter="100"></v-text-field>
+                <v-row>
+                  <v-col cols="6">
+                    <v-select v-model="form.gender" label="Gender" :items="genderOptions" variant="outlined"></v-select>
+                  </v-col>
+                  <v-col cols="6">
+                    <v-text-field v-model.number="form.age" label="Age" type="number" variant="outlined"></v-text-field>
+                  </v-col>
+                </v-row>
+                <v-select v-model="form.city_id" label="City" :items="cities" item-title="name" item-value="id" variant="outlined" class="mb-3" @update:model-value="onCityChange"></v-select>
+                <v-text-field v-model="form.phone_number" label="Phone" variant="outlined" class="mb-3"></v-text-field>
+                <v-textarea v-model="form.bio" label="Bio" variant="outlined" rows="3" class="mb-3"></v-textarea>
+                <v-select v-model="form.allow_message_from" label="Accept messages from" :items="['Everyone', 'Same_Gender']" variant="outlined" class="mb-3"></v-select>
+
+                <div class="text-subtitle-2 mb-2">Approximate location</div>
+                <div id="edit-map" style="height:260px;border-radius:8px;"></div>
+                <div class="text-caption mt-2">{{ hint }}</div>
+                <v-btn size="small" variant="text" class="mt-1" @click="useCityCentre">Use city centre</v-btn>
+              </v-card-text>
+
+              <v-card-actions v-if="editing" class="px-6 pb-4">
+                <v-spacer></v-spacer>
+                <v-btn variant="text" @click="cancelEdit">Cancel</v-btn>
+                <v-btn color="primary" variant="flat" :loading="saving" @click="save">Save</v-btn>
+              </v-card-actions>
+
+              <v-list v-else density="comfortable" class="py-2">
                 <v-list-item prepend-icon="mdi-city-variant-outline">
                   <v-list-item-title>City</v-list-item-title>
                   <v-list-item-subtitle>{{ cityName(owner.city_id) }}</v-list-item-subtitle>
@@ -62,6 +91,12 @@
                   <v-list-item-subtitle class="text-wrap">{{ owner.bio || '—' }}</v-list-item-subtitle>
                 </v-list-item>
 
+                <v-list-item prepend-icon="mdi-map-marker-outline">
+                  <v-list-item-title>Location</v-list-item-title>
+                  <v-list-item-subtitle>Approximate spot in {{ cityName(owner.city_id) }}</v-list-item-subtitle>
+                  <div v-if="owner.latitude != null" id="view-map" style="height:160px;border-radius:8px;" class="mt-2"></div>
+                </v-list-item>
+
                 <v-divider class="my-2"></v-divider>
 
                 <v-list-item prepend-icon="mdi-shield-account-outline">
@@ -71,15 +106,53 @@
                   </v-list-item-subtitle>
                 </v-list-item>
               </v-list>
+              <v-card-actions v-if="!editing" class="px-6 pb-4">
+                <v-btn variant="text" prepend-icon="mdi-lock-reset" @click="openPassword">Change password</v-btn>
+                <v-spacer></v-spacer>
+                <v-btn color="primary" variant="flat" prepend-icon="mdi-pencil" @click="startEdit">Edit</v-btn>
+              </v-card-actions>
+            </v-card>
+
+            <v-card v-if="owner && !loading" rounded="lg" elevation="2" class="mt-6">
+              <v-card-item class="px-6 pt-4">
+                <v-card-title class="text-h6">My cats</v-card-title>
+                <template v-slot:append>
+                  <v-btn color="primary" variant="tonal" size="small" href="/my-cats.html" prepend-icon="mdi-plus">Add cat</v-btn>
+                </template>
+              </v-card-item>
+              <v-list v-if="cats.length" density="comfortable">
+                <v-list-item v-for="cat in cats" :key="cat.id" prepend-icon="mdi-cat">
+                  <v-list-item-title>{{ cat.name }}</v-list-item-title>
+                  <v-list-item-subtitle>{{ breedName(cat.breed_id) }} · {{ cat.age }} {{ cat.age === 1 ? 'year' : 'years' }}</v-list-item-subtitle>
+                </v-list-item>
+              </v-list>
+              <v-card-text v-else class="text-body-2">You haven't added a cat yet.</v-card-text>
             </v-card>
           </div>
         </v-container>
       </v-main>
+      <v-dialog v-model="pwDialog" max-width="420">
+        <v-card rounded="lg">
+          <v-card-title class="pt-5 px-6">Change password</v-card-title>
+          <v-card-text class="px-6">
+            <v-alert v-if="pwError" type="error" variant="tonal" class="mb-4">{{ pwError }}</v-alert>
+            <v-alert v-if="pwSuccess" type="success" variant="tonal" class="mb-4">{{ pwSuccess }}</v-alert>
+            <v-text-field v-model="pw.current" label="Current password" type="password" variant="outlined" class="mb-3"></v-text-field>
+            <v-text-field v-model="pw.next" label="New password (at least 8 characters)" type="password" variant="outlined"></v-text-field>
+          </v-card-text>
+          <v-card-actions class="px-6 pb-4">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="pwDialog = false">Close</v-btn>
+            <v-btn color="primary" variant="flat" :loading="pwSaving" @click="changePassword">Change</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </v-app>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/shared.js"></script>
   <script>
     const { createApp } = Vue
@@ -90,8 +163,23 @@
         return {
           owner: null,
           cities: [],
+          breeds: [],
+          cats: [],
           loading: true,
           error: '',
+          hint: CM_LOCATION_HINT,
+          genderOptions: ['male', 'female', 'non-binary', 'Other', 'prefer_not_to_say'],
+          editing: false,
+          saving: false,
+          saveError: '',
+          form: {},
+          picker: null,
+          viewPicker: null,
+          pwDialog: false,
+          pwSaving: false,
+          pwError: '',
+          pwSuccess: '',
+          pw: { current: '', next: '' },
         }
       },
       async mounted() {
@@ -101,8 +189,13 @@
           const res = await fetch('/cities/')
           if (res.ok) this.cities = await res.json()
         } catch (e) { /* fall back to showing the raw id */ }
-        await this.fetchProfile()
+        try {
+          const res = await fetch('/breeds/')
+          if (res.ok) this.breeds = await res.json()
+        } catch (e) { /* cats fall back to a blank breed */ }
+        await Promise.all([this.fetchProfile(), this.fetchCats()])
         this.loading = false
+        this.showViewMap()
       },
       methods: {
         authHeader() {
@@ -116,6 +209,131 @@
             this.owner = await res.json()
           } catch (e) {
             this.error = 'Network error. Is the server running?'
+          }
+        },
+        logoutAndRedirect() {
+          localStorage.removeItem('cm_token')
+          window.location.href = '/login.html'
+        },
+        async fetchCats() {
+          try {
+            const res = await fetch('/cats/', { headers: this.authHeader() })
+            if (res.status === 401) { this.logoutAndRedirect(); return }
+            if (res.ok) this.cats = await res.json()
+          } catch (e) { /* the list just stays empty */ }
+        },
+        breedName(breedId) {
+          const breed = this.breeds.find(b => b.id === breedId)
+          return breed ? breed.name : 'Unknown breed'
+        },
+        currentCity() {
+          return this.cities.find(c => c.id === this.form.city_id)
+        },
+        async showViewMap() {
+          if (this.viewPicker) { this.viewPicker.destroy(); this.viewPicker = null }
+          await this.$nextTick()
+          if (!this.owner || this.owner.latitude == null || !document.getElementById('view-map')) return
+          this.viewPicker = cmLocationPicker('view-map', {
+            lat: this.owner.latitude, lng: this.owner.longitude, readonly: true,
+          })
+        },
+        async startEdit() {
+          const o = this.owner
+          this.form = {
+            name: o.name, gender: o.gender, age: o.age, city_id: o.city_id,
+            phone_number: o.phone_number, bio: o.bio, allow_message_from: o.allow_message_from,
+            latitude: o.latitude, longitude: o.longitude,
+          }
+          this.saveError = ''
+          if (this.viewPicker) { this.viewPicker.destroy(); this.viewPicker = null }
+          this.editing = true
+          await this.$nextTick()
+          const c = this.currentCity()
+          this.picker = cmLocationPicker('edit-map', {
+            lat: this.form.latitude, lng: this.form.longitude,
+            cityLat: c && c.latitude, cityLng: c && c.longitude,
+            onChange: (la, ln) => { this.form.latitude = la; this.form.longitude = ln },
+          })
+        },
+        closeEdit() {
+          if (this.picker) { this.picker.destroy(); this.picker = null }
+          this.editing = false
+          this.showViewMap()
+        },
+        cancelEdit() { this.closeEdit() },
+        onCityChange() {
+          // The old pin belongs to the old city, so move to the new city's centre.
+          this.useCityCentre()
+        },
+        useCityCentre() {
+          const c = this.currentCity()
+          if (!c || c.latitude == null) return
+          this.form.latitude = c.latitude
+          this.form.longitude = c.longitude
+          if (this.picker) { this.picker.setPin(c.latitude, c.longitude); this.picker.setCity(c.latitude, c.longitude) }
+        },
+        async save() {
+          this.saveError = ''
+          this.saving = true
+          try {
+            const f = this.form
+            const body = {
+              name: f.name, gender: f.gender, age: f.age === '' ? null : f.age, city_id: f.city_id,
+              phone_number: f.phone_number || null, bio: f.bio || null,
+              allow_message_from: f.allow_message_from,
+              latitude: f.latitude, longitude: f.longitude,
+            }
+            const res = await fetch('/owners/me', {
+              method: 'PATCH',
+              headers: { ...this.authHeader(), 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            if (res.status === 401) { this.logoutAndRedirect(); return }
+            const data = await res.json()
+            if (!res.ok) { this.saveError = this.errorText(data); return }
+            this.owner = data
+            this.closeEdit()
+          } catch (e) {
+            this.saveError = 'Network error. Is the server running?'
+          } finally {
+            this.saving = false
+          }
+        },
+        errorText(data) {
+          // 404/400 send a string; 422 sends a list of {loc, msg}.
+          if (typeof data.detail === 'string') return data.detail
+          if (Array.isArray(data.detail)) {
+            return data.detail.map(d => `${(d.loc || []).slice(1).join('.')}: ${d.msg}`).join('; ')
+          }
+          return 'Something went wrong.'
+        },
+        openPassword() {
+          this.pw = { current: '', next: '' }
+          this.pwError = ''
+          this.pwSuccess = ''
+          this.pwDialog = true
+        },
+        async changePassword() {
+          this.pwError = ''
+          this.pwSuccess = ''
+          this.pwSaving = true
+          try {
+            const res = await fetch('/owners/me/password', {
+              method: 'POST',
+              headers: { ...this.authHeader(), 'Content-Type': 'application/json' },
+              body: JSON.stringify({ current_password: this.pw.current, new_password: this.pw.next }),
+            })
+            if (res.status === 401) { this.logoutAndRedirect(); return }
+            if (res.status === 204) {
+              this.pwSuccess = 'Password changed.'
+              this.pw = { current: '', next: '' }
+              return
+            }
+            this.pwError = this.errorText(await res.json())
+          } catch (e) {
+            this.pwError = 'Network error. Is the server running?'
+          } finally {
+            this.pwSaving = false
           }
         },
         cityName(cityId) {

@@ -68,3 +68,74 @@ const CmNav = {
     </v-app-bar>
   `,
 }
+
+// Map picker (Leaflet + OpenStreetMap, no API key). Load Leaflet's CSS and JS
+// before this file on pages that use it.
+//
+//   const picker = cmLocationPicker('map', {
+//     lat, lng,            // current pin, or null for none
+//     cityLat, cityLng,    // centre used when there is no pin
+//     onChange(lat, lng),  // called with the pin rounded to 2 decimals (~1 km)
+//     readonly: false,     // true = preview only, no clicking or dragging
+//   })
+//   picker.setPin(lat, lng)      // move the pin (null, null removes it)
+//   picker.setCity(lat, lng)     // re-centre the map without a pin
+//   picker.invalidate()          // call after the map's container becomes visible
+//   picker.destroy()             // call before the map's element is removed
+const CM_LOCATION_HINT = 'Pick a spot near you, not your exact address. Other owners will only see an approximate distance.'
+
+function cmRound2(value) {
+  return Math.round(value * 100) / 100
+}
+
+function cmLocationPicker(elementId, options) {
+  const { lat, lng, cityLat, cityLng, onChange, readonly } = options
+  const hasPin = lat != null && lng != null
+  const start = hasPin ? [lat, lng] : (cityLat != null ? [cityLat, cityLng] : [50.5, 10])
+  const zoom = hasPin || cityLat != null ? 11 : 4
+
+  const map = L.map(elementId, {
+    dragging: true,
+    scrollWheelZoom: !readonly,
+  }).setView(start, zoom)
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map)
+
+  let marker = null
+  function place(la, ln, notify) {
+    const r = [cmRound2(la), cmRound2(ln)]
+    if (!marker) {
+      marker = L.marker(r, { draggable: !readonly }).addTo(map)
+      if (!readonly) {
+        marker.on('dragend', () => {
+          const p = marker.getLatLng()
+          place(p.lat, p.lng, true)
+        })
+      }
+    } else {
+      marker.setLatLng(r)
+    }
+    if (notify && onChange) onChange(r[0], r[1])
+  }
+
+  if (hasPin) place(lat, lng, false)
+  if (!readonly) map.on('click', e => place(e.latlng.lat, e.latlng.lng, true))
+
+  return {
+    setPin(la, ln) {
+      if (la == null || ln == null) {
+        if (marker) { marker.remove(); marker = null }
+        return
+      }
+      place(la, ln, false)
+      map.setView([la, ln], map.getZoom())
+    },
+    setCity(la, ln) {
+      if (la != null && ln != null) map.setView([la, ln], 11)
+    },
+    invalidate() { map.invalidateSize() },
+    destroy() { map.remove() },
+  }
+}
