@@ -78,6 +78,9 @@ def seed_owner(session:SessionDep):
         for owner in owners_seed:
             existing = session.exec(select(Owner).where(Owner.name == owner.name)).first()
             if not existing:
+                city = session.get(City, owner.city_id)
+                if city and owner.latitude is None:
+                    owner.latitude, owner.longitude = city.latitude, city.longitude
                 session.add(owner)
             else:
                 print("Owner exists in db")
