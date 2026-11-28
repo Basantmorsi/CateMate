@@ -25,6 +25,18 @@ class CatRead(BaseModel):
     notes: Optional[str]= None
 
 
+class CatBrowseRead(CatRead):
+    """A cat as shown on Browse: the cat plus a little public context.
+
+    Never carries coordinates, email or phone. distance_km is None for
+    visitors who are not logged in and for owners without a location.
+    """
+    owner_name: str
+    city_name: str
+    breed_name: str
+    distance_km: int | None = None
+
+
 class CatUpdate(BaseModel):
     name: str | None = None
     age: int | None = None

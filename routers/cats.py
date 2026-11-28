@@ -1,14 +1,17 @@
 import cloudinary.uploader
-from fastapi import APIRouter, HTTPException, status, UploadFile
+from fastapi import APIRouter, HTTPException, Query, status, UploadFile
 from fastapi.params import File
 from fastapi.responses import RedirectResponse
-from sqlmodel import select, Session
-from CateMate.models.cat import Cat
+from sqlmodel import select, func, Session
+from CateMate.models.breed import Breed
+from CateMate.models.cat import Cat, CatGender
+from CateMate.models.city import City
 from CateMate.models.owner import Owner
 from CateMate.models.catphoto import CatPhoto
-from CateMate.schemas.cat import CatCreate, CatRead, CatUpdate
+from CateMate.schemas.cat import CatBrowseRead, CatCreate, CatRead, CatUpdate
 from CateMate.schemas.catphoto import CatPhotoRead
-from CateMate.utils.auth import CurrentOwnerId
+from CateMate.utils.auth import CurrentOwnerId, OptionalOwner
+from CateMate.utils.distance import distance_km
 from CateMate.db import SessionDep
 from CateMate.utils.cloudinary import upload_image
 
@@ -52,6 +55,65 @@ def get_cat_by_breed(session: SessionDep, breed_id: int):
 def get_all_cats(session: SessionDep):
     cats = session.exec(select(Cat).order_by(*NEWEST_FIRST)).all()
     return cats
+
+# Public Browse search. Registered before /{cat_id}. Every filter is optional and
+# they all combine. A logged-in visitor also gets an approximate distance.
+@router.get("/search", response_model=list[CatBrowseRead], status_code=status.HTTP_200_OK)
+def search_cats(
+    session: SessionDep,
+    viewer: OptionalOwner,
+    city_id: int | None = None,
+    breed_id: int | None = None,
+    gender: CatGender | None = None,
+    color: str | None = None,
+    min_age: int | None = Query(default=None, ge=0),
+    max_age: int | None = Query(default=None, ge=0),
+    hide_mine: bool = False,
+):
+    if min_age is not None and max_age is not None and min_age > max_age:
+        raise HTTPException(status_code=422, detail="min_age cannot be greater than max_age")
+
+    query = (
+        select(Cat, Owner, City, Breed)
+        .join(Owner, Cat.owner_id == Owner.id)
+        .join(City, Owner.city_id == City.id)
+        .join(Breed, Cat.breed_id == Breed.id)
+        .order_by(*NEWEST_FIRST)
+    )
+    if city_id is not None:
+        query = query.where(Owner.city_id == city_id)
+    if breed_id is not None:
+        query = query.where(Cat.breed_id == breed_id)
+    if gender is not None:
+        query = query.where(Cat.gender == gender)
+    if color:
+        query = query.where(func.lower(Cat.color) == color.lower())
+    if min_age is not None:
+        query = query.where(Cat.age >= min_age)
+    if max_age is not None:
+        query = query.where(Cat.age <= max_age)
+    if hide_mine and viewer:
+        query = query.where(Cat.owner_id != viewer.id)
+
+    can_measure = viewer is not None and viewer.latitude is not None and viewer.longitude is not None
+    results = []
+    for cat, owner, city, breed in session.exec(query).all():
+        distance = None
+        if can_measure and owner.latitude is not None and owner.longitude is not None:
+            distance = distance_km(viewer.latitude, viewer.longitude, owner.latitude, owner.longitude)
+        results.append(CatBrowseRead(
+            **cat.model_dump(),
+            owner_name=owner.name,
+            city_name=city.name,
+            breed_name=breed.name,
+            distance_km=distance,
+        ))
+    return results
+
+# Public: the colours in use, for the Browse colour filter.
+@router.get("/colors", response_model=list[str], status_code=status.HTTP_200_OK)
+def get_colors(session: SessionDep):
+    return session.exec(select(func.lower(Cat.color)).distinct().order_by(func.lower(Cat.color))).all()
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)
 def get_cat(session: SessionDep, cat_id: int, owner_id: CurrentOwnerId):

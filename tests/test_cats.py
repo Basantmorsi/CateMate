@@ -188,3 +188,128 @@ def test_browse_order_tie_breaks_by_id_newest_first(client: TestClient, make_own
     session.add(second)
     session.commit()
     assert [c["name"] for c in client.get("/cats/all").json()] == ["Second", "First"]
+
+
+# ---------- GET /cats/search and /cats/colors ----------
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _locate(session, owner, lat, lng):
+    owner.latitude, owner.longitude = lat, lng
+    session.add(owner)
+    session.commit()
+
+
+def _names(response):
+    assert response.status_code == 200
+    return [c["name"] for c in response.json()]
+
+
+def test_search_without_filters_returns_all_newest_first(client: TestClient, make_owner, make_breed, make_cat):
+    owner = make_owner()
+    breed = make_breed()
+    make_cat(owner_id=owner.id, breed_id=breed.id, name="First")
+    make_cat(owner_id=owner.id, breed_id=breed.id, name="Second")
+    assert _names(client.get("/cats/search")) == ["Second", "First"]
+
+
+def test_search_filters_combine(client: TestClient, make_owner, make_breed, make_cat):
+    from CateMate.models.cat import CatGender
+    owner = make_owner()
+    other = make_owner()
+    breed_a, breed_b = make_breed(), make_breed()
+    make_cat(owner_id=owner.id, breed_id=breed_a.id, name="Match", gender=CatGender.MALE, color="Gray", age=3)
+    make_cat(owner_id=owner.id, breed_id=breed_b.id, name="WrongBreed", gender=CatGender.MALE, color="Gray", age=3)
+    make_cat(owner_id=owner.id, breed_id=breed_a.id, name="WrongGender", gender=CatGender.FEMALE, color="Gray", age=3)
+    make_cat(owner_id=owner.id, breed_id=breed_a.id, name="WrongColor", gender=CatGender.MALE, color="Black", age=3)
+    make_cat(owner_id=owner.id, breed_id=breed_a.id, name="TooOld", gender=CatGender.MALE, color="Gray", age=9)
+    make_cat(owner_id=other.id, breed_id=breed_a.id, name="WrongCity", gender=CatGender.MALE, color="Gray", age=3)
+
+    response = client.get("/cats/search", params={
+        "city_id": owner.city_id, "breed_id": breed_a.id, "gender": "MALE",
+        "color": "gray", "min_age": 2, "max_age": 5,
+    })
+    assert _names(response) == ["Match"]
+
+
+def test_search_each_filter_alone(client: TestClient, make_owner, make_breed, make_cat):
+    from CateMate.models.cat import CatGender
+    owner = make_owner()
+    other = make_owner()
+    breed_a, breed_b = make_breed(), make_breed()
+    make_cat(owner_id=owner.id, breed_id=breed_a.id, name="Old", gender=CatGender.MALE, color="Orange", age=8)
+    make_cat(owner_id=other.id, breed_id=breed_b.id, name="Young", gender=CatGender.FEMALE, color="white", age=1)
+
+    assert _names(client.get("/cats/search", params={"city_id": owner.city_id})) == ["Old"]
+    assert _names(client.get("/cats/search", params={"breed_id": breed_b.id})) == ["Young"]
+    assert _names(client.get("/cats/search", params={"gender": "FEMALE"})) == ["Young"]
+    assert _names(client.get("/cats/search", params={"color": "ORANGE"})) == ["Old"]
+    assert _names(client.get("/cats/search", params={"min_age": 5})) == ["Old"]
+    assert _names(client.get("/cats/search", params={"max_age": 5})) == ["Young"]
+
+
+def test_search_invalid_age_range_422(client: TestClient):
+    assert client.get("/cats/search", params={"min_age": 5, "max_age": 2}).status_code == 422
+    assert client.get("/cats/search", params={"min_age": -1}).status_code == 422
+
+
+def test_search_hide_mine_only_for_logged_in(client: TestClient, make_owner, token_for, make_breed, make_cat):
+    me = make_owner()
+    other = make_owner()
+    breed = make_breed()
+    make_cat(owner_id=me.id, breed_id=breed.id, name="Mine")
+    make_cat(owner_id=other.id, breed_id=breed.id, name="Theirs")
+
+    headers = _auth(token_for(me.id))
+    assert set(_names(client.get("/cats/search", headers=headers))) == {"Mine", "Theirs"}
+    assert _names(client.get("/cats/search", params={"hide_mine": True}, headers=headers)) == ["Theirs"]
+    # a visitor has no "mine", so nothing is hidden
+    assert set(_names(client.get("/cats/search", params={"hide_mine": True}))) == {"Mine", "Theirs"}
+
+
+def test_search_result_has_context_but_no_private_data(client: TestClient, session, make_owner, make_breed, make_cat):
+    owner = make_owner()
+    _locate(session, owner, 48.14, 11.58)
+    breed = make_breed()
+    make_cat(owner_id=owner.id, breed_id=breed.id, name="Public")
+
+    cat = client.get("/cats/search").json()[0]
+    assert cat["owner_name"] == owner.name
+    assert cat["city_name"] == f"City-{owner.city_id}"
+    assert cat["breed_name"] == breed.name
+    for private in ("latitude", "longitude", "email", "phone_number", "password"):
+        assert private not in cat
+
+
+def test_search_distance_only_for_logged_in_with_locations(client: TestClient, session, make_owner, token_for, make_breed, make_cat):
+    viewer = make_owner()
+    near = make_owner(name="Near")
+    nowhere = make_owner(name="Nowhere")
+    _locate(session, viewer, 48.137, 11.575)   # Munich
+    _locate(session, near, 52.520, 13.405)     # Berlin
+    breed = make_breed()
+    make_cat(owner_id=near.id, breed_id=breed.id, name="InBerlin")
+    make_cat(owner_id=nowhere.id, breed_id=breed.id, name="NoLocation")
+
+    visitor = {c["name"]: c["distance_km"] for c in client.get("/cats/search").json()}
+    assert visitor == {"InBerlin": None, "NoLocation": None}
+
+    logged_in = client.get("/cats/search", headers=_auth(token_for(viewer.id))).json()
+    assert {c["name"]: c["distance_km"] for c in logged_in} == {"InBerlin": 504, "NoLocation": None}
+
+
+def test_search_invalid_token_401(client: TestClient):
+    response = client.get("/cats/search", headers=_auth("not-a-token"))
+    assert response.status_code == 401
+
+
+def test_colors_are_distinct_lowercase_and_sorted(client: TestClient, make_owner, make_breed, make_cat):
+    owner = make_owner()
+    breed = make_breed()
+    for color in ("Orange", "orange", "Black"):
+        make_cat(owner_id=owner.id, breed_id=breed.id, color=color)
+    response = client.get("/cats/colors")
+    assert response.status_code == 200
+    assert response.json() == ["black", "orange"]
