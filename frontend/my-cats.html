@@ -46,6 +46,8 @@
                 <v-card-actions>
                   <v-btn v-if="hasPhotos(cat)" variant="text" color="primary" prepend-icon="mdi-image-multiple">View photos</v-btn>
                   <v-btn v-else variant="text" color="primary" prepend-icon="mdi-camera-plus">Add photos</v-btn>
+                  <v-spacer></v-spacer>
+                  <v-btn variant="text" prepend-icon="mdi-pencil" @click.stop="openDetail(cat, true)">Edit</v-btn>
                 </v-card-actions>
               </v-card>
             </v-col>
@@ -110,7 +112,24 @@
               {{ selectedCat.gender }}
             </v-chip>
           </v-card-title>
-          <v-card-text class="px-6">
+          <v-card-text v-if="editing" class="px-6">
+            <v-alert v-if="editError" type="error" variant="tonal" class="mb-4">{{ editError }}</v-alert>
+            <v-text-field v-model="editForm.name" label="Name" variant="outlined" class="mb-3"></v-text-field>
+            <v-text-field v-model.number="editForm.age" label="Age (years)" type="number" variant="outlined" class="mb-3"></v-text-field>
+            <v-select
+              v-model="editForm.breed_id"
+              label="Breed"
+              :items="breeds"
+              item-title="name"
+              item-value="id"
+              variant="outlined"
+              class="mb-3"
+            ></v-select>
+            <v-select v-model="editForm.gender" label="Gender" :items="['MALE', 'FEMALE']" variant="outlined" class="mb-3"></v-select>
+            <v-text-field v-model="editForm.color" label="Color" variant="outlined" class="mb-3"></v-text-field>
+            <v-textarea v-model="editForm.notes" label="Notes (optional)" variant="outlined" rows="2"></v-textarea>
+          </v-card-text>
+          <v-card-text v-else class="px-6">
             <div class="mb-1"><strong>Age:</strong> {{ selectedCat.age }} · <strong>Color:</strong> {{ selectedCat.color }}</div>
             <div v-if="selectedCat.notes" class="text-medium-emphasis mb-2">{{ selectedCat.notes }}</div>
 
@@ -148,7 +167,13 @@
               Upload
             </v-btn>
           </v-card-text>
-          <v-card-actions class="px-6 pb-5">
+          <v-card-actions v-if="editing" class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="text" @click="cancelEdit">Cancel</v-btn>
+            <v-btn color="primary" variant="flat" :loading="savingEdit" @click="saveEdit">Save</v-btn>
+          </v-card-actions>
+          <v-card-actions v-else class="px-6 pb-5">
+            <v-btn variant="text" prepend-icon="mdi-pencil" @click="startEdit()">Edit</v-btn>
             <v-spacer></v-spacer>
             <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
           </v-card-actions>
@@ -176,6 +201,11 @@
           formError: '',
           newCat: { name: '', age: null, breed_id: null, gender: 'MALE', color: '', notes: '' },
           detailDialog: false,
+          editing: false,
+          editFromCard: false,
+          editForm: {},
+          editError: '',
+          savingEdit: false,
           selectedCat: null,
           dialogPhotos: [],
           loadingPhotos: false,
@@ -249,13 +279,64 @@
             this.saving = false
           }
         },
-        async openDetail(cat) {
+        async openDetail(cat, edit = false) {
           this.selectedCat = cat
           this.dialogPhotos = []
+          this.editing = false
           this.photoError = ''
           this.uploadFile = null
           this.detailDialog = true
+          if (edit) this.startEdit(true)
           await this.fetchCatPhotos(cat.id)
+        },
+        startEdit(fromCard = false) {
+          this.editFromCard = fromCard
+          const c = this.selectedCat
+          this.editForm = { name: c.name, age: c.age, breed_id: c.breed_id, gender: c.gender, color: c.color, notes: c.notes || '' }
+          this.editError = ''
+          this.editing = true
+        },
+        finishEdit() {
+          // Edit opened from the card: go back to the list, not the view dialog.
+          this.editing = false
+          if (this.editFromCard) this.detailDialog = false
+        },
+        cancelEdit() {
+          this.finishEdit()
+        },
+        async saveEdit() {
+          const f = this.editForm
+          if (!f.name || !f.name.trim()) { this.editError = 'Name is required'; return }
+          if (!f.color || !f.color.trim()) { this.editError = 'Color is required'; return }
+          if (typeof f.age !== 'number' || isNaN(f.age) || f.age < 0) { this.editError = 'Age must be a number of 0 or more'; return }
+          // Send only what changed.
+          const original = this.selectedCat
+          const changes = {}
+          for (const key of ['name', 'age', 'breed_id', 'gender', 'color', 'notes']) {
+            const value = key === 'notes' ? (f.notes || null) : f[key]
+            const before = key === 'notes' ? (original.notes || null) : original[key]
+            if (value !== before) changes[key] = value
+          }
+          if (Object.keys(changes).length === 0) { this.finishEdit(); return }
+          this.editError = ''
+          this.savingEdit = true
+          try {
+            const res = await fetch(`/cats/${original.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', ...this.authHeader() },
+              body: JSON.stringify(changes),
+            })
+            if (res.status === 401) { window.location.href = '/login.html'; return }
+            const data = await res.json()
+            if (!res.ok) { this.editError = typeof data.detail === 'string' ? data.detail : 'Failed to save changes'; return }
+            this.cats = this.cats.map(c => (c.id === data.id ? data : c))
+            this.selectedCat = data
+            this.finishEdit()
+          } catch (e) {
+            this.editError = 'Network error'
+          } finally {
+            this.savingEdit = false
+          }
         },
         async fetchCatPhotos(catId) {
           this.loadingPhotos = true

@@ -112,22 +112,6 @@
                 <v-btn color="primary" variant="flat" prepend-icon="mdi-pencil" @click="startEdit">Edit Profile</v-btn>
               </v-card-actions>
             </v-card>
-
-            <v-card v-if="owner && !loading" rounded="lg" elevation="2" class="mt-6">
-              <v-card-item class="px-6 pt-4">
-                <v-card-title class="text-h6">My cats</v-card-title>
-                <template v-slot:append>
-                  <v-btn color="primary" variant="tonal" size="small" href="/my-cats.html" prepend-icon="mdi-plus">Add cat</v-btn>
-                </template>
-              </v-card-item>
-              <v-list v-if="cats.length" density="comfortable">
-                <v-list-item v-for="cat in cats" :key="cat.id" prepend-icon="mdi-cat">
-                  <v-list-item-title>{{ cat.name }}</v-list-item-title>
-                  <v-list-item-subtitle>{{ breedName(cat.breed_id) }} · {{ cat.age }} {{ cat.age === 1 ? 'year' : 'years' }}</v-list-item-subtitle>
-                </v-list-item>
-              </v-list>
-              <v-card-text v-else class="text-body-2">You haven't added a cat yet.</v-card-text>
-            </v-card>
           </div>
         </v-container>
       </v-main>
@@ -163,8 +147,6 @@
         return {
           owner: null,
           cities: [],
-          breeds: [],
-          cats: [],
           loading: true,
           error: '',
           hint: CM_LOCATION_HINT,
@@ -189,11 +171,7 @@
           const res = await fetch('/cities/')
           if (res.ok) this.cities = await res.json()
         } catch (e) { /* fall back to showing the raw id */ }
-        try {
-          const res = await fetch('/breeds/')
-          if (res.ok) this.breeds = await res.json()
-        } catch (e) { /* cats fall back to a blank breed */ }
-        await Promise.all([this.fetchProfile(), this.fetchCats()])
+        await this.fetchProfile()
         this.loading = false
         this.showViewMap()
       },
@@ -214,17 +192,6 @@
         logoutAndRedirect() {
           localStorage.removeItem('cm_token')
           window.location.href = '/login.html'
-        },
-        async fetchCats() {
-          try {
-            const res = await fetch('/cats/', { headers: this.authHeader() })
-            if (res.status === 401) { this.logoutAndRedirect(); return }
-            if (res.ok) this.cats = await res.json()
-          } catch (e) { /* the list just stays empty */ }
-        },
-        breedName(breedId) {
-          const breed = this.breeds.find(b => b.id === breedId)
-          return breed ? breed.name : 'Unknown breed'
         },
         currentCity() {
           return this.cities.find(c => c.id === this.form.city_id)

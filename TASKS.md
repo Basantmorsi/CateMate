@@ -30,7 +30,7 @@ Ordered task list derived from the Week 1 worksheet. Each task is full-stack (AP
   *Depends on:* T1.
 
 - [x] **T3. Owner profile & location** — done 2026-11-28
-  Owner can view and edit their own profile (name, gender, age, city, phone, bio, messaging preference) and set an approximate location on a map (Leaflet + OpenStreetMap) at registration and later. Owners who don't pick a spot get their city's centre stored as their coordinates. Also added: change password and a "My cats" list on the profile.
+  Owner can view and edit their own profile (name, gender, age, city, phone, bio, messaging preference) and set an approximate location on a map (Leaflet + OpenStreetMap) at registration and later. Owners who don't pick a spot get their city's centre stored as their coordinates. Also added: change password.
   *Done:* `PATCH /owners/me`, `POST /owners/me/password`, city latitude/longitude, coordinates rounded to 2 decimals (~1 km), `profile.html` and `register.html` with the map picker, seed owners and the migrated `catemate.db` have coordinates, tests in `tests/test_owners.py`.
   *Moved to T2:* the contact-sharing choice (opt-in to share phone/email) is not part of this task and is still open.
   *Depends on:* T2 (built ahead of it by choice).
@@ -43,6 +43,10 @@ Ordered task list derived from the Week 1 worksheet. Each task is full-stack (AP
   Owner can delete a cat (and its photos); anyone logged in can open a public cat detail page (photos, breed, age, colour, gender, notes, owner's public info and approximate distance). Decide whether cats need an "available for mating" flag so unavailable cats stay out of search.
   *Done when:* full create/edit/delete lifecycle works from `my-cats.html`, and a cat detail page exists and is linkable.
   *Depends on:* T2.
+  *Progress:* editing a cat is done (T4.1). Delete a cat (with its photos), the public cat detail page and the availability flag are still open.
+
+- [x] **T4.1. Edit a cat** — done 2026-11-28
+  Each cat card on `my-cats.html` has an Edit button, and the cat's detail dialog has one too. Both open a form (name, age, breed, gender, colour, notes) with Save/Cancel, using the existing `PATCH /cats/{id}`. The card updates right after saving. Frontend only.
 
 - [ ] **T5. Match search (per cat, within a radius)**
   Owner picks one of their cats; results show only opposite-gender cats, never their own, within a chosen distance, with optional breed / colour / age-range filters combined together, ordered by distance. Replaces the separate city/breed filters on `browse.html`.
