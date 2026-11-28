@@ -6,6 +6,10 @@
   <title>Browse Cats – CateMate</title>
   <link href="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+  <style>
+    /* Your own cats: a primary-coloured border around the whole card, photo included. */
+    .cm-mine { border: 2px solid rgb(var(--v-theme-primary)) !important; }
+  </style>
 </head>
 <body>
   <div id="app">
@@ -55,11 +59,17 @@
           <v-row v-else-if="cats.length > 0">
             <v-col v-for="cat in cats" :key="cat.id" cols="12" sm="6" md="4" class="d-flex">
               <v-card rounded="lg" elevation="2" hover class="d-flex flex-column flex-grow-1"
-                style="cursor:pointer" @click="openDetail(cat)">
+                :class="{ 'cm-mine': isMine(cat) }" style="cursor:pointer" @click="openDetail(cat)">
                 <v-img :src="catCover(cat)" height="200" cover>
-                  <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" class="ma-2" color="rgba(0,0,0,0.6)">
-                    <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
-                  </v-chip>
+                  <div class="d-flex align-start pa-2">
+                    <v-chip v-if="hasPhotos(cat) && photos[cat.id].length > 1" size="small" color="rgba(0,0,0,0.6)">
+                      <v-icon start icon="mdi-image-multiple"></v-icon>{{ photos[cat.id].length }}
+                    </v-chip>
+                    <v-spacer></v-spacer>
+                    <v-chip v-if="isMine(cat)" size="small" color="primary" variant="flat" class="font-weight-bold">
+                      <v-icon start icon="mdi-account-heart"></v-icon>My cat
+                    </v-chip>
+                  </div>
                 </v-img>
                 <v-card-title class="d-flex align-center">
                   <v-icon icon="mdi-cat" class="mr-2" color="primary"></v-icon>
@@ -81,15 +91,18 @@
                 </v-card-text>
                 <v-card-actions>
                   <v-btn
-                    v-if="cat.owner_id !== myId"
+                    v-if="!isMine(cat)"
                     :icon="likedIds.has(cat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
                     :color="likedIds.has(cat.id) ? 'pink' : 'grey'"
                     variant="text"
                     @click.stop="toggleLike(cat)"
                   ></v-btn>
                   <v-spacer></v-spacer>
-                  <v-btn v-if="cat.owner_id !== myId" variant="text" color="primary" prepend-icon="mdi-email-outline" @click.stop="openMessage(cat)">
+                  <v-btn v-if="!isMine(cat)" variant="text" color="primary" prepend-icon="mdi-email-outline" @click.stop="openMessage(cat)">
                     Message owner
+                  </v-btn>
+                  <v-btn v-else variant="text" color="primary" prepend-icon="mdi-pencil" href="/my-cats.html" @click.stop>
+                    Manage
                   </v-btn>
                 </v-card-actions>
               </v-card>
@@ -114,6 +127,9 @@
             <v-chip :color="detailCat.gender === 'MALE' ? 'blue' : 'pink'" size="small" variant="tonal" class="ml-3">
               {{ detailCat.gender }}
             </v-chip>
+            <v-chip v-if="isMine(detailCat)" size="small" color="primary" variant="flat" class="ml-2 font-weight-bold">
+              <v-icon start icon="mdi-account-heart"></v-icon>My cat
+            </v-chip>
             <v-spacer></v-spacer>
             <v-btn icon="mdi-close" variant="text" @click="detailDialog = false"></v-btn>
           </v-card-title>
@@ -132,7 +148,7 @@
               <strong>Location:</strong> {{ detailCat.city_name }}<span v-if="detailCat.distance_km !== null"> · {{ distanceText(detailCat.distance_km) }}</span>
             </div>
           </v-card-text>
-          <v-card-actions v-if="detailCat.owner_id !== myId" class="px-6 pb-5">
+          <v-card-actions v-if="!isMine(detailCat)" class="px-6 pb-5">
             <v-btn
               :prepend-icon="likedIds.has(detailCat.id) ? 'mdi-heart' : 'mdi-heart-outline'"
               :color="likedIds.has(detailCat.id) ? 'pink' : 'grey'"
@@ -142,7 +158,10 @@
             <v-spacer></v-spacer>
             <v-btn color="primary" variant="flat" prepend-icon="mdi-email-outline" @click="openMessage(detailCat)">Message owner</v-btn>
           </v-card-actions>
-          <v-card-actions v-else class="px-6 pb-5"><v-spacer></v-spacer><span class="text-medium-emphasis text-body-2">This is your cat.</span></v-card-actions>
+          <v-card-actions v-else class="px-6 pb-5">
+            <v-spacer></v-spacer>
+            <v-btn variant="tonal" color="primary" prepend-icon="mdi-pencil" href="/my-cats.html">Manage in My Cats</v-btn>
+          </v-card-actions>
         </v-card>
       </v-dialog>
 
@@ -240,11 +259,14 @@
           this.likedIds = next
         },
         openMessage(cat) {
-          if (cat.owner_id === this.myId) return
+          if (this.isMine(cat)) return
           if (!this.isLoggedIn) { window.location.href = '/login.html'; return }
           // Open the dedicated chat thread with this cat's owner.
           const params = new URLSearchParams({ user: cat.owner_id, cat: cat.id, catName: cat.name })
           window.location.href = `/chat.html?${params}`
+        },
+        isMine(cat) {
+          return this.myId !== null && cat.owner_id === this.myId
         },
         applyFilters() {
           return this.fetchCats()
