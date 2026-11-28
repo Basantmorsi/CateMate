@@ -14,6 +14,10 @@ from CateMate.utils.cloudinary import upload_image
 
 router = APIRouter(prefix="/cats", tags=["Cats"])
 
+# Browse order: newest cat first. Cat.id breaks ties, because migrated and
+# seeded cats share one created_at.
+NEWEST_FIRST = (Cat.created_at.desc(), Cat.id.desc())
+
 def select_cat(cat_id: int, session:Session):
     cat = session.get(Cat, cat_id)
     if not cat:
@@ -34,19 +38,19 @@ def get_cats(session: SessionDep, owner_id: CurrentOwnerId):
 
 @router.get("/city/{city_id}", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
 def get_cat_by_city(session: SessionDep, city_id: int):
-    cats = session.exec(select(Cat).join(Owner, Cat.owner_id == Owner.id).where(Owner.city_id==city_id)).all()
+    cats = session.exec(select(Cat).join(Owner, Cat.owner_id == Owner.id).where(Owner.city_id==city_id).order_by(*NEWEST_FIRST)).all()
     return cats
 
 @router.get("/breed/{breed_id}", response_model=list[CatRead] , status_code=status.HTTP_200_OK)
 def get_cat_by_breed(session: SessionDep, breed_id: int):
-    cats = session.exec(select(Cat).where(Cat.breed_id==breed_id)).all()
+    cats = session.exec(select(Cat).where(Cat.breed_id==breed_id).order_by(*NEWEST_FIRST)).all()
     return cats
 
 # Public: every cat on the platform. Registered before /{cat_id} so "all" is
 # not matched as a cat id.
 @router.get("/all", response_model=list[CatRead], status_code=status.HTTP_200_OK)
 def get_all_cats(session: SessionDep):
-    cats = session.exec(select(Cat)).all()
+    cats = session.exec(select(Cat).order_by(*NEWEST_FIRST)).all()
     return cats
 
 @router.get("/{cat_id}", response_model=CatRead, status_code=status.HTTP_200_OK)

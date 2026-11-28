@@ -151,3 +151,40 @@ def test_update_nonexistent_cat_404(client: TestClient, make_owner, token_for):
         headers=_auth(token_for(owner.id)),
     )
     assert response.status_code == 404
+
+def _make_older_and_newer(make_owner, make_breed, make_cat, session):
+    from datetime import datetime, timedelta, timezone
+    owner = make_owner()
+    breed = make_breed()
+    base = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    # The older cat has the lower id, so plain id order would put it first.
+    older = make_cat(owner_id=owner.id, breed_id=breed.id, name="Older")
+    newer = make_cat(owner_id=owner.id, breed_id=breed.id, name="Newer")
+    newer.created_at = base + timedelta(hours=1)
+    older.created_at = base
+    session.add(newer)
+    session.add(older)
+    session.commit()
+    return owner, breed
+
+
+def test_browse_endpoints_return_newest_cat_first(client: TestClient, make_owner, make_breed, make_cat, session):
+    owner, breed = _make_older_and_newer(make_owner, make_breed, make_cat, session)
+    for url in ("/cats/all", f"/cats/city/{owner.city_id}", f"/cats/breed/{breed.id}"):
+        names = [c["name"] for c in client.get(url).json()]
+        assert names == ["Newer", "Older"], url
+
+
+def test_browse_order_tie_breaks_by_id_newest_first(client: TestClient, make_owner, make_breed, make_cat, session):
+    from datetime import datetime, timezone
+    owner = make_owner()
+    breed = make_breed()
+    same = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    first = make_cat(owner_id=owner.id, breed_id=breed.id, name="First")
+    second = make_cat(owner_id=owner.id, breed_id=breed.id, name="Second")
+    first.created_at = same
+    second.created_at = same
+    session.add(first)
+    session.add(second)
+    session.commit()
+    assert [c["name"] for c in client.get("/cats/all").json()] == ["Second", "First"]
